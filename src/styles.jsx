@@ -32,6 +32,7 @@ export const S = {
   btnRed:      { background:"linear-gradient(135deg,#c93030,#ff5c5c)",color:"#fff" },
   btnGhost:    { background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.13)",color:"#9999bb" },
   overlayWrap: { position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)" },
+  overlayWrapTop: { position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)" },
   winBox:      { background:"#1a1a2e",border:"1px solid rgba(124,109,250,.4)",borderRadius:24,padding:"36px 28px",textAlign:"center",maxWidth:320,width:"100%" },
   toast:       { position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"rgba(30,30,50,.96)",border:"1px solid rgba(255,255,255,.13)",color:"#f0f0ff",padding:"12px 22px",borderRadius:40,fontSize:14,fontWeight:500,zIndex:9999,whiteSpace:"nowrap",backdropFilter:"blur(10px)",maxWidth:"90vw",overflow:"hidden",textOverflow:"ellipsis" },
   th:          { padding:"8px 6px",textAlign:"center",color:"#6b6b8a",fontSize:11,textTransform:"uppercase",letterSpacing:".05em",borderBottom:"1px solid rgba(255,255,255,.1)" },

@@ -214,6 +214,7 @@ export default function GameScreen({ session, onLogout }) {
   };
 
   const resetGame = async () => {
+    console.log("[ScoreKing] resetGame called. history length:", game.history?.length, "game:", game);
     // Record the game that's about to be wiped, so every participating viewer keeps
     // a permanent personal record of it — match by (case-insensitive) display name
     // against the room's actual viewer accounts, since admin-typed "Player 1" etc.
@@ -224,7 +225,11 @@ export default function GameScreen({ session, onLogout }) {
         const match = viewers.find(v => v.name.trim().toLowerCase() === p.name.trim().toLowerCase());
         if (match) viewerUsernameByPlayerIndex[i] = match.username;
       });
-      recordFinishedGame({ adminUsername: roomOwner, game, viewerUsernameByPlayerIndex }).catch(console.error);
+      console.log("[ScoreKing] recording game, viewer map:", viewerUsernameByPlayerIndex, "viewers loaded:", viewers);
+      const result = await recordFinishedGame({ adminUsername: roomOwner, game, viewerUsernameByPlayerIndex });
+      console.log("[ScoreKing] recordFinishedGame result:", result);
+    } else {
+      console.log("[ScoreKing] SKIPPED recording — history was empty or missing");
     }
 
     const players = game.players.map(p => ({ ...p, total: 0, lastAdded: 0, eliminated: false }));
@@ -339,11 +344,14 @@ export default function GameScreen({ session, onLogout }) {
     <div style={S.appWrap}>
       {/* TOP BAR */}
       <div style={S.topBar}>
-        <div style={S.flex("row", "center", 8)}>
+        <div
+          style={{ ...S.flex("row", "center", 8), cursor: !isAdmin ? "pointer" : "default" }}
+          onClick={!isAdmin ? () => { setPlayerPanelOpen(true); setPlayerErr(""); } : undefined}
+        >
           <Avatar avatar={session.avatar || (isAdmin ? "👑" : "🎮")} size={20} />
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: "#f0f0ff" }}>{session.name || session.username}</div>
-            <div style={{ fontSize: 11, color: "#6b6b8a" }}>{isAdmin ? "Admin · " + session.username : "Player @ " + roomOwner}</div>
+            <div style={{ fontSize: 11, color: "#6b6b8a" }}>{isAdmin ? "Admin · " + session.username : "Player @ " + roomOwner + " · tap to edit"}</div>
           </div>
         </div>
         <div style={S.flex("row", "center", 8)}>
@@ -354,11 +362,6 @@ export default function GameScreen({ session, onLogout }) {
           {isAdmin && (
             <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setAdminOpen(true)}>
               ⚙️ Admin
-            </button>
-          )}
-          {!isAdmin && (
-            <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => { setPlayerPanelOpen(true); setPlayerErr(""); }}>
-              👤 My Profile
             </button>
           )}
           <button style={S.btnGhost} onClick={onLogout}>↩ Logout</button>
@@ -619,7 +622,12 @@ export default function GameScreen({ session, onLogout }) {
             <div style={{ fontSize: 24, fontWeight: 700, color: "#a48cff", marginBottom: 4 }}>Game Over!</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: "#f5c842", marginBottom: 6 }}>{game.winner}</div>
             <div style={{ color: "#6b6b8a", fontSize: 14, marginBottom: 24 }}>wins with the lowest score! 🎉</div>
-            {isAdmin && <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={resetGame}>🎮 Play Again</button>}
+            {isAdmin && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={resetGame}>🎮 Play Again</button>
+                <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowWinner(false)}>Close (review scores first)</button>
+              </div>
+            )}
             {!isAdmin && <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowWinner(false)}>Close</button>}
           </div>
         </div>
@@ -628,7 +636,7 @@ export default function GameScreen({ session, onLogout }) {
       {toast && <div style={S.toast}>{toast}</div>}
 
       {confirmDlg && (
-        <div style={S.overlayWrap}>
+        <div style={S.overlayWrapTop}>
           <div style={{ ...S.winBox, maxWidth: 320, padding: 28 }}>
             <div style={{ fontSize: 15, color: "#f0f0ff", marginBottom: 22 }}>{confirmDlg.msg}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -755,6 +763,22 @@ export default function GameScreen({ session, onLogout }) {
 
             {playerTab === "profile" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+                  <div style={{ position: "relative" }}>
+                    <Avatar avatar={session.avatar || "🎮"} size={88} />
+                    <label style={{
+                      position: "absolute", bottom: -4, right: -4, background: "#7c6dfa", borderRadius: "50%",
+                      width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", fontSize: 14, border: "2px solid #1a1a2e",
+                    }}>
+                      📷
+                      <input type="file" accept="image/*" style={{ display: "none" }}
+                        onChange={e => handleViewerPhotoSelect(session.username, e.target.files?.[0])} disabled={photoUploading} />
+                    </label>
+                  </div>
+                </div>
+                {photoUploading && <div style={{ textAlign: "center", fontSize: 12, color: "#9999bb" }}>Uploading…</div>}
+
                 <div>
                   <label style={S.fieldLabel}>Display name</label>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -785,6 +809,9 @@ export default function GameScreen({ session, onLogout }) {
                 <button style={{ ...S.btn, ...S.btnRed, width: "100%" }} onClick={handleLeaveRoom}>
                   🚪 Leave This Room
                 </button>
+                <div style={{ fontSize: 11, color: "#6b6b8a", textAlign: "center" }}>
+                  Your username, PIN, and game history stay safe — you'll just need a new room code to join somewhere else.
+                </div>
               </div>
             )}
 

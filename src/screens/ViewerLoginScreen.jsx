@@ -16,6 +16,10 @@ export default function ViewerLoginScreen({ onBack, onDone }) {
     const res = await loginViewer(username.trim(), pin);
     setBusy(false);
     if (!res.ok) return setErr(res.error);
+    if (!res.viewer.admin_username) {
+      setErr("You're not in a room yet — use \"Join a Friend's Game\" below with a room code.");
+      return;
+    }
     onDone({
       role: "viewer",
       username: res.viewer.username,

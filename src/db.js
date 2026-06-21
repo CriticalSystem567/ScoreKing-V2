@@ -227,7 +227,9 @@ export async function switchRoom(username, newRoomCode) {
   return { ok: true, adminUsername };
 }
 export async function leaveRoom(username) {
-  const { error } = await supabase.from("viewers").delete().eq("username", norm(username));
+  // Previously deleted the whole account — now just detaches from the room,
+  // so the player's username, PIN, and personal game history all survive.
+  const { error } = await supabase.from("viewers").update({ admin_username: null }).eq("username", norm(username));
   return !error;
 }
 

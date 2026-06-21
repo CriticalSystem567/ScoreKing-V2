@@ -21,8 +21,11 @@ export default function AdminLoginScreen({ onBack, onForgot, onDone }) {
   return (
     <div style={S.screen}>
       <div style={S.loginBox}>
-        <div style={S.logo}>ScoreKing 🃏</div>
+        <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Admin Login</div>
+        <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+          Log in to manage your room: enter scores, control dealing order, and share your room code with players.
+        </div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
           <div>

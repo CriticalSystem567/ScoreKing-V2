@@ -128,17 +128,24 @@ export async function deleteAdmin(username) {
   return true;
 }
 
-/* ─── ROOMS (game state + room code) ─── */
+/* ─── ROOMS (game state + room code + lock status) ─── */
 export async function getRoomGame(adminUsername) {
-  const { data, error } = await supabase.from("rooms").select("game").eq("admin_username", norm(adminUsername)).maybeSingle();
+  const { data, error } = await supabase.from("rooms").select("game, locked").eq("admin_username", norm(adminUsername)).maybeSingle();
   if (error || !data) return null;
-  return data.game;
+  return { ...data.game, _roomLocked: data.locked };
 }
 export async function setRoomGame(adminUsername, game) {
+  // strip the transient _roomLocked flag before saving — it's read from the rooms.locked
+  // column directly, not part of the game JSON blob itself.
+  const { _roomLocked, ...cleanGame } = game;
   const { error } = await supabase.from("rooms")
-    .update({ game, updated_at: new Date().toISOString() })
+    .update({ game: cleanGame, updated_at: new Date().toISOString() })
     .eq("admin_username", norm(adminUsername));
   if (error) console.error(error);
+  return !error;
+}
+export async function setRoomLocked(adminUsername, locked) {
+  const { error } = await supabase.from("rooms").update({ locked }).eq("admin_username", norm(adminUsername));
   return !error;
 }
 export async function getRoomCode(adminUsername) {
@@ -237,53 +244,70 @@ export async function leaveRoom(username) {
    Recorded once per game (on reset/replay or natural end-with-winner), survives
    room switches, resets, and even a player being removed from a room. */
 export async function recordFinishedGame({ adminUsername, game, viewerUsernameByPlayerIndex }) {
-  // viewerUsernameByPlayerIndex: { [playerIndex]: username } — only players who are
-  // actual logged-in viewers (not just admin-typed names) get a personal record.
-  if (!game.history || game.history.length === 0) return { ok: true, skipped: true }; // nothing played, don't record an empty game
+  try {
+    console.log("[ScoreKing/db] recordFinishedGame starting. history:", game?.history?.length);
+    if (!game.history || game.history.length === 0) {
+      console.log("[ScoreKing/db] skipped — no history");
+      return { ok: true, skipped: true };
+    }
 
-  const finalStandings = game.players.map(p => ({ name: p.name, total: p.total, eliminated: p.eliminated }));
+    const finalStandings = game.players.map(p => ({ name: p.name, total: p.total, eliminated: p.eliminated }));
 
-  const { data: recordRow, error: recErr } = await supabase.from("game_records").insert({
-    admin_username: norm(adminUsername),
-    winner: game.winner || null,
-    max_score: game.maxScore,
-    rounds_played: game.round - 1,
-    full_history: game.history,
-    final_standings: finalStandings,
-  }).select("id").single();
-
-  if (recErr || !recordRow) return { ok: false, error: recErr?.message || "Failed to create game record" };
-
-  const rows = [];
-  game.players.forEach((p, i) => {
-    const username = viewerUsernameByPlayerIndex[i];
-    if (!username) return; // admin-typed player with no real account — nothing to attach history to
-    rows.push({
-      game_record_id: recordRow.id,
-      username: norm(username),
-      player_name: p.name,
+    const insertPayload = {
       admin_username: norm(adminUsername),
-      final_score: p.total,
-      eliminated: p.eliminated,
-      won: game.winner === p.name,
+      winner: game.winner || null,
+      max_score: game.maxScore,
       rounds_played: game.round - 1,
-    });
-  });
+      full_history: game.history,
+      final_standings: finalStandings,
+    };
+    console.log("[ScoreKing/db] inserting game_records:", insertPayload);
 
-  if (rows.length > 0) {
-    const { error: prErr } = await supabase.from("player_game_results").insert(rows);
-    if (prErr) return { ok: false, error: prErr.message };
+    const { data: recordRow, error: recErr } = await supabase.from("game_records").insert(insertPayload).select("id").single();
+    console.log("[ScoreKing/db] game_records insert result:", { recordRow, recErr });
+
+    if (recErr || !recordRow) return { ok: false, error: recErr?.message || "Failed to create game record" };
+
+    const rows = [];
+    game.players.forEach((p, i) => {
+      const username = viewerUsernameByPlayerIndex[i];
+      if (!username) return;
+      rows.push({
+        game_record_id: recordRow.id,
+        username: norm(username),
+        player_name: p.name,
+        admin_username: norm(adminUsername),
+        final_score: p.total,
+        eliminated: p.eliminated,
+        won: game.winner === p.name,
+        rounds_played: game.round - 1,
+      });
+    });
+    console.log("[ScoreKing/db] player_game_results rows to insert:", rows);
+
+    if (rows.length > 0) {
+      const { error: prErr, data: prData } = await supabase.from("player_game_results").insert(rows).select();
+      console.log("[ScoreKing/db] player_game_results insert result:", { prData, prErr });
+      if (prErr) return { ok: false, error: prErr.message };
+    } else {
+      console.log("[ScoreKing/db] no rows to insert — no players matched a real viewer account");
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[ScoreKing/db] recordFinishedGame THREW:", e);
+    return { ok: false, error: String(e) };
   }
-  return { ok: true };
 }
 
 export async function getMyGameHistory(username) {
+  console.log("[ScoreKing/db] getMyGameHistory for:", username);
   const { data, error } = await supabase
     .from("player_game_results")
     .select("*, game_records(full_history, final_standings)")
     .eq("username", norm(username))
     .order("ended_at", { ascending: false });
-  if (error) { console.error(error); return []; }
+  console.log("[ScoreKing/db] getMyGameHistory result:", { data, error });
+  if (error) { console.error("[ScoreKing/db] getMyGameHistory ERROR:", error); return []; }
   return data || [];
 }
 

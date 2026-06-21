@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../supabaseClient.js";
 import { S, Avatar } from "../styles.jsx";
 import { PLAYER_COLORS, EMOJIS, DEFAULT_GAME, isPhotoAvatar, buildGameCSV, downloadCSV } from "../constants.js";
-import { getZoneJoke } from "../jokes.js";
+import { getZoneJoke, getWinnerLine } from "../jokes.js";
 import {
   getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
-  uploadAvatarPhoto, getRoomCode, regenerateRoomCode,
+  uploadAvatarPhoto, getRoomCode, regenerateRoomCode, setRoomLocked,
   changeOwnName, changeOwnPin, switchRoom, leaveRoom,
   recordFinishedGame, getMyGameHistory,
 } from "../db.js";
@@ -47,6 +47,8 @@ export default function GameScreen({ session, onLogout }) {
 
   const [viewers, setViewers] = useState([]);
   const [roomCode, setRoomCodeState] = useState(null);
+  const [lockBusy, setLockBusy] = useState(false);
+  const [showHelpTip, setShowHelpTip] = useState(true);
   const [regenBusy, setRegenBusy] = useState(false);
   const [editNameIdx, setEditNameIdx] = useState(null);
   const [editPhotoUsername, setEditPhotoUsername] = useState(null);
@@ -85,7 +87,8 @@ export default function GameScreen({ session, onLogout }) {
         (payload) => {
           const g = payload.new?.game;
           if (g) {
-            setGame(prev => (!prev || g.updatedAt > (prev.updatedAt || 0)) ? g : prev);
+            const merged = { ...g, _roomLocked: payload.new?.locked || false };
+            setGame(prev => (!prev || merged.updatedAt > (prev.updatedAt || 0)) ? merged : prev);
             setLastSync(new Date());
           }
         })
@@ -132,6 +135,25 @@ export default function GameScreen({ session, onLogout }) {
       if (res.ok) { setRoomCodeState(res.code); showToast("✅ New room code generated"); }
       else showToast("⚠️ Failed: " + res.error);
     });
+  };
+
+  const roomLocked = game?._roomLocked || false;
+  const handleToggleLock = () => {
+    const goingToLock = !roomLocked;
+    askConfirm(
+      goingToLock
+        ? "Close this room? Players won't be able to view or play until you reopen it."
+        : "Reopen this room? Players will be able to view and play again.",
+      async () => {
+        setLockBusy(true);
+        const ok = await setRoomLocked(roomOwner, goingToLock);
+        setLockBusy(false);
+        if (ok) {
+          setGame(prev => ({ ...prev, _roomLocked: goingToLock }));
+          showToast(goingToLock ? "🔒 Room closed" : "🔓 Room reopened");
+        } else showToast("⚠️ Failed to update room status");
+      }
+    );
   };
 
   /* ── push game state ── */
@@ -203,8 +225,9 @@ export default function GameScreen({ session, onLogout }) {
 
     const active = players.filter(p => !p.eliminated);
     const winner = active.length === 1 ? active[0].name : null;
+    const winnerLine = winner ? getWinnerLine(`${roomOwner}-${game.round}-${winner}`) : null;
 
-    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner, jokes };
+    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner, winnerLine, jokes };
     await pushGame(newG);
     setRoundInputs({});
     setShowWinner(true);
@@ -233,7 +256,7 @@ export default function GameScreen({ session, onLogout }) {
     }
 
     const players = game.players.map(p => ({ ...p, total: 0, lastAdded: 0, eliminated: false }));
-    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, jokes: {} });
+    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, winnerLine: null, jokes: {} });
     setRoundInputs({});
     setShowWinner(true);
     showToast("Game reset!");
@@ -300,9 +323,11 @@ export default function GameScreen({ session, onLogout }) {
   const handleSwitchRoom = async () => {
     setPlayerErr("");
     if (!pNewRoomCode.trim()) { setPlayerErr("Enter a room code"); return; }
+    console.log("[ScoreKing] Switching room. username:", session.username, "entered code:", pNewRoomCode.trim());
     setPlayerBusy(true);
     const res = await switchRoom(session.username, pNewRoomCode.trim());
     setPlayerBusy(false);
+    console.log("[ScoreKing] switchRoom result:", res);
     if (!res.ok) { setPlayerErr(res.error); return; }
     showToast("✅ Switched rooms! Log back in to enter your new room.");
     setTimeout(onLogout, 1500); // same username/PIN still work — they'll land in the new room on next login
@@ -338,6 +363,24 @@ export default function GameScreen({ session, onLogout }) {
     return <div style={S.appWrap}><div style={{ textAlign: "center", padding: 40, color: "#9999bb" }}>Loading game data…</div></div>;
   }
 
+  // Viewers (not admin) get fully blocked while the room is locked — admin still
+  // sees the normal interface so they can reopen it or manage settings.
+  if (!isAdmin && game._roomLocked) {
+    return (
+      <div style={S.screen}>
+        <div style={S.loginBox}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#f0f0ff", marginBottom: 8 }}>This room is closed</div>
+          <div style={{ fontSize: 13, color: "#9999bb", marginBottom: 24 }}>
+            {roomOwner} has temporarily closed this room. Your spot, score history, and account are all safe —
+            check back once they reopen it.
+          </div>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onLogout}>↩ Logout</button>
+        </div>
+      </div>
+    );
+  }
+
   const maxS = game.maxScore;
 
   return (
@@ -369,9 +412,24 @@ export default function GameScreen({ session, onLogout }) {
       </div>
 
       <div style={{ textAlign: "center", padding: "20px 0 16px" }}>
-        <div style={S.logo}>ScoreKing 🃏</div>
+        <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>{isAdmin ? "Your Room" : `${roomOwner}'s Room`}</div>
       </div>
+
+      {showHelpTip && (
+        <div style={{
+          ...S.glass, padding: "12px 14px", marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 10,
+          background: "rgba(124,109,250,.08)", border: "1px solid rgba(124,109,250,.2)",
+        }}>
+          <span style={{ fontSize: 16 }}>💡</span>
+          <div style={{ flex: 1, fontSize: 12, color: "#9999bb", lineHeight: 1.5 }}>
+            {isAdmin
+              ? <>You're the host — set up players above, enter each round's scores, and tap your name/avatar anytime to manage your account or room code.</>
+              : <>You're watching live — scores update automatically. Tap your name/avatar anytime to change your PIN, switch rooms, or check your game history.</>}
+          </div>
+          <button style={{ background: "none", border: "none", color: "#6b6b8a", cursor: "pointer", fontSize: 16, padding: 0 }} onClick={() => setShowHelpTip(false)}>✕</button>
+        </div>
+      )}
 
       {/* SETUP (admin only) */}
       {isAdmin && (
@@ -620,8 +678,13 @@ export default function GameScreen({ session, onLogout }) {
           <div style={S.winBox}>
             <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: "#a48cff", marginBottom: 4 }}>Game Over!</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#f5c842", marginBottom: 6 }}>{game.winner}</div>
-            <div style={{ color: "#6b6b8a", fontSize: 14, marginBottom: 24 }}>wins with the lowest score! 🎉</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#f5c842", marginBottom: 10 }}>{game.winner}</div>
+            <div style={{
+              fontSize: 14, color: "#f0f0ff", marginBottom: 24, fontStyle: "italic", lineHeight: 1.5,
+              padding: "10px 14px", background: "rgba(245,200,66,.08)", border: "1px solid rgba(245,200,66,.2)", borderRadius: 10,
+            }}>
+              {game.winnerLine || "wins with the lowest score! 🎉"}
+            </div>
             {isAdmin && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={resetGame}>🎮 Play Again</button>
@@ -729,10 +792,31 @@ export default function GameScreen({ session, onLogout }) {
                 <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleRegenerateCode} disabled={regenBusy}>
                   {regenBusy ? "Generating…" : "🔄 Generate New Code"}
                 </button>
-                <div style={{ fontSize: 11, color: "#6b6b8a", marginTop: 8, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#6b6b8a", marginTop: 8, textAlign: "center", marginBottom: 18 }}>
                   Regenerating immediately invalidates the old code — anyone who hasn't joined yet will need the new one.
                   Players who already joined are unaffected.
                 </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,.08)", marginBottom: 18 }} />
+
+                <div style={S.sectionLabel}>Room Status</div>
+                <div style={{
+                  padding: "14px 16px", borderRadius: 12, marginBottom: 12,
+                  background: roomLocked ? "rgba(255,92,92,.08)" : "rgba(34,201,122,.08)",
+                  border: `1px solid ${roomLocked ? "rgba(255,92,92,.25)" : "rgba(34,201,122,.25)"}`,
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: roomLocked ? "#ff5c5c" : "#22c97a" }}>
+                    {roomLocked ? "🔒 Room is Closed" : "🔓 Room is Open"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#9999bb", marginTop: 4 }}>
+                    {roomLocked
+                      ? "Players see a closed message and can't view or play. Your scores and history are safe."
+                      : "Players can view the scoreboard and play normally."}
+                  </div>
+                </div>
+                <button style={{ ...S.btn, ...(roomLocked ? S.btnGreen : S.btnRed), width: "100%" }} onClick={handleToggleLock} disabled={lockBusy}>
+                  {lockBusy ? "Updating…" : roomLocked ? "🔓 Reopen Room" : "🔒 Close Room"}
+                </button>
               </>
             )}
           </div>

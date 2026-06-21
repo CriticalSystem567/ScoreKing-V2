@@ -32,8 +32,11 @@ export default function ViewerLoginScreen({ onBack, onDone }) {
   return (
     <div style={S.screen}>
       <div style={S.loginBox}>
-        <div style={S.logo}>ScoreKing 🃏</div>
+        <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Player Login</div>
+        <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+          Already joined a room before? Log in with the username and PIN you picked then.
+        </div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
           <div>

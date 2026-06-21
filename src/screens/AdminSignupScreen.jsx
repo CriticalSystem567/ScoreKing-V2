@@ -34,8 +34,12 @@ export default function AdminSignupScreen({ onBack, onDone }) {
   return (
     <div style={S.screen}>
       <div style={S.loginBox}>
-        <div style={S.logo}>ScoreKing 🃏</div>
+        <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Create your admin account</div>
+        <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+          As an admin, you'll get your own private room with a shareable code — friends join with that code
+          and see live scores, while you control the game.
+        </div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
           <div>

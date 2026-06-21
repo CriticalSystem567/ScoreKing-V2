@@ -27,8 +27,12 @@ export default function ViewerJoinScreen({ onBack, onDone }) {
   return (
     <div style={S.screen}>
       <div style={S.loginBox}>
-        <div style={S.logo}>ScoreKing 🃏</div>
+        <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Join a Friend's Game</div>
+        <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+          Ask whoever's hosting for their room code. You'll join instantly and can save your username + PIN
+          to log back in anytime.
+        </div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
           <div>

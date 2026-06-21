@@ -38,7 +38,7 @@ export default function AdminForgotScreen({ onBack }) {
   return (
     <div style={S.screen}>
       <div style={S.loginBox}>
-        <div style={S.logo}>ScoreKing 🃏</div>
+        <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Reset Admin Password</div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>

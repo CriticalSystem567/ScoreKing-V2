@@ -19,6 +19,7 @@ export default function GameScreen({ session, onLogout }) {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("all"); // "all" or a player name
   const [tableView, setTableView] = useState(false);
   const [showWinner, setShowWinner] = useState(true); // lets a viewer dismiss the overlay locally without affecting others
   const [toast, setToast] = useState("");
@@ -479,32 +480,45 @@ export default function GameScreen({ session, onLogout }) {
       )}
 
       {!isAdmin && (
-        <div style={{ textAlign: "center", color: "#6b6b8a", fontSize: 13, marginBottom: 14, padding: "10px 0" }}>
-          🔴 Live · Auto-refreshes every {POLL_MS / 1000}s
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowHistory(v => !v)}>📊 {showHistory ? "Hide" : "View"} Round History</button>
+          <div style={{ textAlign: "center", color: "#6b6b8a", fontSize: 13, padding: "4px 0" }}>
+            🔴 Live · Auto-refreshes every {POLL_MS / 1000}s
+          </div>
         </div>
       )}
 
       {/* HISTORY */}
       {showHistory && (
         <div style={{ ...S.glass, marginBottom: 14 }}>
-          <div style={{ ...S.flex("row", "center"), justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ ...S.flex("row", "center"), justifyContent: "space-between", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
             <div style={S.sectionLabel}>Round History</div>
             {isAdmin && <button style={{ ...S.btn, ...S.btnGhost, padding: "4px 10px", minHeight: 28, fontSize: 12 }}
               onClick={() => askConfirm("Clear history?", () => pushGame({ ...game, history: [] }))}>Clear</button>}
           </div>
+          <select style={{ ...S.select, marginBottom: 12 }} value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>
+            <option value="all">All players</option>
+            {game.players.map((p, i) => <option key={i} value={p.name}>{p.name} only</option>)}
+          </select>
           <div style={{ maxHeight: 280, overflowY: "auto" }}>
             {!game.history.length && <div style={{ textAlign: "center", color: "#6b6b8a", padding: 20, fontSize: 13 }}>No rounds played yet</div>}
-            {[...game.history].reverse().map((h, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 50px 50px 64px", padding: "8px 4px", borderBottom: "1px solid rgba(255,255,255,.04)", fontSize: 12, alignItems: "center", gap: 4 }}>
-                <div style={{ color: "#6b6b8a", fontWeight: 600, fontSize: 11 }}>{h.round}</div>
-                <div style={{ color: "#9999bb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {h.player}{h.dealer && <span style={{ color: "#6b6b8a", fontSize: 10 }}> · dealer: {h.dealer}</span>}
+            {game.history.length > 0 && (() => {
+              const filtered = historyFilter === "all" ? game.history : game.history.filter(h => h.player === historyFilter);
+              if (filtered.length === 0) {
+                return <div style={{ textAlign: "center", color: "#6b6b8a", padding: 20, fontSize: 13 }}>No rounds yet for {historyFilter}</div>;
+              }
+              return [...filtered].reverse().map((h, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 50px 50px 64px", padding: "8px 4px", borderBottom: "1px solid rgba(255,255,255,.04)", fontSize: 12, alignItems: "center", gap: 4 }}>
+                  <div style={{ color: "#6b6b8a", fontWeight: 600, fontSize: 11 }}>{h.round}</div>
+                  <div style={{ color: "#9999bb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {h.player}{h.dealer && <span style={{ color: "#6b6b8a", fontSize: 10 }}> · dealer: {h.dealer}</span>}
+                  </div>
+                  <div style={{ color: "#f5c842", fontWeight: 600 }}>+{h.added}</div>
+                  <div style={{ fontWeight: 700 }}>{h.total}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: h.status === "ELIMINATED" ? "#ff5c5c" : "#22c97a" }}>{h.status}</div>
                 </div>
-                <div style={{ color: "#f5c842", fontWeight: 600 }}>+{h.added}</div>
-                <div style={{ fontWeight: 700 }}>{h.total}</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: h.status === "ELIMINATED" ? "#ff5c5c" : "#22c97a" }}>{h.status}</div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
       )}

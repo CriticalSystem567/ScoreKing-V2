@@ -119,10 +119,13 @@ export async function listAllAdmins() {
 }
 export async function deleteAdmin(username) {
   const u = norm(username);
-  await supabase.from("viewers").delete().eq("admin_username", u);
-  await supabase.from("rooms").delete().eq("admin_username", u);
-  const { error } = await supabase.from("admins").delete().eq("username", u);
-  return !error;
+  const r1 = await supabase.from("viewers").delete().eq("admin_username", u);
+  if (r1.error) { console.error("delete viewers failed:", r1.error); return false; }
+  const r2 = await supabase.from("rooms").delete().eq("admin_username", u);
+  if (r2.error) { console.error("delete room failed:", r2.error); return false; }
+  const r3 = await supabase.from("admins").delete().eq("username", u);
+  if (r3.error) { console.error("delete admin failed:", r3.error); return false; }
+  return true;
 }
 
 /* ─── ROOMS (game state + room code) ─── */

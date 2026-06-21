@@ -45,7 +45,7 @@ export default function App() {
     case "adminForgot":
       return <AdminForgotScreen onBack={() => setScreen("adminLogin")} />;
     case "viewerJoin":
-      return <ViewerJoinScreen onBack={() => setScreen("landing")} />;
+      return <ViewerJoinScreen onBack={() => setScreen("landing")} onDone={(s) => setSession(s)} />;
     case "viewerLogin":
       return <ViewerLoginScreen onBack={() => setScreen("landing")} onDone={(s) => setSession(s)} />;
     default:

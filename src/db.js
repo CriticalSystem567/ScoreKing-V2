@@ -7,6 +7,13 @@ import { supabase } from "./supabaseClient.js";
 
 const norm = (s) => String(s || "").trim().toLowerCase();
 
+function genRoomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars (0/O, 1/I)
+  let s = "";
+  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
 /* ─── INVITE CODES ─── */
 export async function createInviteCode(code) {
   const { error } = await supabase.from("invite_codes").insert({ code });
@@ -59,8 +66,16 @@ export async function signUpAdmin({ username, password, securityQuestion, securi
 
   await consumeInviteCode(inviteCode, u);
 
-  // create their room
-  const { error: roomErr } = await supabase.from("rooms").insert({ admin_username: u });
+  // create their room with a fresh, unique room code (retry on rare collision)
+  let roomCode = genRoomCode();
+  let roomErr = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { error } = await supabase.from("rooms").insert({ admin_username: u, room_code: roomCode });
+    if (!error) { roomErr = null; break; }
+    roomErr = error;
+    if (error.code === "23505") { roomCode = genRoomCode(); continue; } // unique violation, retry with new code
+    break;
+  }
   if (roomErr) return { ok: false, error: "Account created but room setup failed: " + roomErr.message };
 
   return { ok: true, username: u };
@@ -103,7 +118,7 @@ export async function deleteAdmin(username) {
   return !error;
 }
 
-/* ─── ROOMS (game state) ─── */
+/* ─── ROOMS (game state + room code) ─── */
 export async function getRoomGame(adminUsername) {
   const { data, error } = await supabase.from("rooms").select("game").eq("admin_username", norm(adminUsername)).maybeSingle();
   if (error || !data) return null;
@@ -116,20 +131,41 @@ export async function setRoomGame(adminUsername, game) {
   if (error) console.error(error);
   return !error;
 }
+export async function getRoomCode(adminUsername) {
+  const { data, error } = await supabase.from("rooms").select("room_code").eq("admin_username", norm(adminUsername)).maybeSingle();
+  if (error || !data) return null;
+  return data.room_code;
+}
+export async function regenerateRoomCode(adminUsername) {
+  let newCode = genRoomCode();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { error } = await supabase.from("rooms").update({ room_code: newCode }).eq("admin_username", norm(adminUsername));
+    if (!error) return { ok: true, code: newCode };
+    if (error.code === "23505") { newCode = genRoomCode(); continue; }
+    return { ok: false, error: error.message };
+  }
+  return { ok: false, error: "Could not generate a unique code, try again" };
+}
+async function findAdminByRoomCode(roomCode) {
+  const { data, error } = await supabase.from("rooms").select("admin_username").eq("room_code", roomCode.trim().toUpperCase()).maybeSingle();
+  if (error || !data) return null;
+  return data.admin_username;
+}
 
 /* ─── VIEWERS ─── */
-export async function requestJoin({ username, pin, name, adminUsername }) {
+export async function joinRoom({ username, pin, name, roomCode }) {
   const u = norm(username);
   if (await usernameTaken(u)) return { ok: false, error: "Username already taken" };
   if (!/^\d{4}$/.test(pin)) return { ok: false, error: "PIN must be 4 digits" };
-  const { data: adminExists } = await supabase.from("admins").select("username").eq("username", norm(adminUsername)).maybeSingle();
-  if (!adminExists) return { ok: false, error: "No admin found with that username" };
+
+  const adminUsername = await findAdminByRoomCode(roomCode);
+  if (!adminUsername) return { ok: false, error: "Room code not found — check it with your host" };
 
   const { error } = await supabase.from("viewers").insert({
-    username: u, pin, name: name.trim() || u, admin_username: norm(adminUsername), approved: false,
+    username: u, pin, name: name.trim() || u, admin_username: adminUsername, approved: true,
   });
-  if (error) return { ok: false, error: "Could not submit request: " + error.message };
-  return { ok: true };
+  if (error) return { ok: false, error: "Could not join: " + error.message };
+  return { ok: true, adminUsername };
 }
 
 export async function loginViewer(username, pin) {
@@ -137,7 +173,6 @@ export async function loginViewer(username, pin) {
   const { data, error } = await supabase.from("viewers").select("*").eq("username", u).maybeSingle();
   if (error || !data) return { ok: false, error: "Username not found" };
   if (data.pin !== pin) return { ok: false, error: "Incorrect PIN" };
-  if (!data.approved) return { ok: false, error: "Your request hasn't been approved yet by the admin" };
   return { ok: true, viewer: data };
 }
 
@@ -147,14 +182,6 @@ export async function listViewersForAdmin(adminUsername) {
   return data || [];
 }
 
-export async function approveViewer(username) {
-  const { error } = await supabase.from("viewers").update({ approved: true }).eq("username", norm(username));
-  return !error;
-}
-export async function rejectViewer(username) {
-  const { error } = await supabase.from("viewers").delete().eq("username", norm(username));
-  return !error;
-}
 export async function updateViewer(username, fields) {
   const { error } = await supabase.from("viewers").update(fields).eq("username", norm(username));
   return !error;

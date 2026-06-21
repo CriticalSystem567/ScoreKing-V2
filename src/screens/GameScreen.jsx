@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../supabaseClient.js";
 import { S, Avatar } from "../styles.jsx";
 import { PLAYER_COLORS, EMOJIS, DEFAULT_GAME, isPhotoAvatar, buildGameCSV, downloadCSV } from "../constants.js";
+import { getZoneJoke } from "../jokes.js";
 import {
-  getRoomGame, setRoomGame, listViewersForAdmin, approveViewer, rejectViewer,
-  updateViewer, removeViewer, uploadAvatarPhoto,
+  getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
+  uploadAvatarPhoto, getRoomCode, regenerateRoomCode,
 } from "../db.js";
 
 const POLL_MS = 3000;
@@ -19,20 +20,21 @@ export default function GameScreen({ session, onLogout }) {
   const [lastSync, setLastSync] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [tableView, setTableView] = useState(false);
-  const [winnerName, setWinnerName] = useState(null);
+  const [showWinner, setShowWinner] = useState(true); // lets a viewer dismiss the overlay locally without affecting others
   const [toast, setToast] = useState("");
   const [csvText, setCsvText] = useState(null);
   const [confirmDlg, setConfirmDlg] = useState(null);
   const toastTimer = useRef(null);
 
   const [adminOpen, setAdminOpen] = useState(false);
-  const [adminTab, setAdminTab] = useState("setup"); // setup | players | requests
+  const [adminTab, setAdminTab] = useState("players"); // players | roomcode
   const [setupPlayers, setSetupPlayers] = useState(4);
   const [setupMax, setSetupMax] = useState(200);
   const [setupDealer, setSetupDealer] = useState(0);
 
   const [viewers, setViewers] = useState([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [roomCode, setRoomCodeState] = useState(null);
+  const [regenBusy, setRegenBusy] = useState(false);
   const [editNameIdx, setEditNameIdx] = useState(null);
   const [editPhotoUsername, setEditPhotoUsername] = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -83,20 +85,41 @@ export default function GameScreen({ session, onLogout }) {
     if (game) { setSetupPlayers(game.numPlayers); setSetupMax(game.maxScore); setSetupDealer(game.dealerIndex || 0); }
   }, [game?.numPlayers, game?.maxScore]);
 
-  /* ── viewer list (admin only) ── */
+  /* ── viewer list + room code (admin only) ── */
   const refreshViewers = useCallback(async () => {
     if (!isAdmin) return;
     const list = await listViewersForAdmin(roomOwner);
     setViewers(list);
-    setPendingCount(list.filter(v => !v.approved).length);
   }, [isAdmin, roomOwner]);
+
+  // Whenever a NEW winner shows up (including via realtime sync from another device),
+  // make sure the overlay is visible again — a dismiss only applies to the round it was shown for.
+  const lastSeenWinnerRef = useRef(null);
+  useEffect(() => {
+    if (game?.winner && game.winner !== lastSeenWinnerRef.current) {
+      lastSeenWinnerRef.current = game.winner;
+      setShowWinner(true);
+    }
+    if (!game?.winner) lastSeenWinnerRef.current = null;
+  }, [game?.winner]);
 
   useEffect(() => {
     if (!isAdmin) return;
     refreshViewers();
+    getRoomCode(roomOwner).then(setRoomCodeState);
     const iv = setInterval(refreshViewers, POLL_MS);
     return () => clearInterval(iv);
-  }, [isAdmin, refreshViewers]);
+  }, [isAdmin, roomOwner, refreshViewers]);
+
+  const handleRegenerateCode = () => {
+    askConfirm("Generate a new room code? The old code will stop working immediately.", async () => {
+      setRegenBusy(true);
+      const res = await regenerateRoomCode(roomOwner);
+      setRegenBusy(false);
+      if (res.ok) { setRoomCodeState(res.code); showToast("✅ New room code generated"); }
+      else showToast("⚠️ Failed: " + res.error);
+    });
+  };
 
   /* ── push game state ── */
   const pushGame = async (newG) => {
@@ -154,21 +177,23 @@ export default function GameScreen({ session, onLogout }) {
       if (!players[candidate].eliminated) { nextDealer = candidate; break; }
     }
 
-    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer };
+    const active = players.filter(p => !p.eliminated);
+    const winner = active.length === 1 ? active[0].name : null;
+
+    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner };
     await pushGame(newG);
     setRoundInputs({});
+    setShowWinner(true);
     showToast(`✅ Round ${game.round} saved! Dealt by ${dealerName}`);
 
-    const active = players.filter(p => !p.eliminated);
-    if (active.length === 1) setWinnerName(active[0].name);
-    else if (active.length === 0) showToast("All players eliminated!");
+    if (active.length === 0) showToast("All players eliminated!");
   };
 
   const resetGame = async () => {
     const players = game.players.map(p => ({ ...p, total: 0, lastAdded: 0, eliminated: false }));
-    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0 });
+    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null });
     setRoundInputs({});
-    setWinnerName(null);
+    setShowWinner(true);
     showToast("Game reset!");
   };
 
@@ -185,14 +210,6 @@ export default function GameScreen({ session, onLogout }) {
   };
 
   /* ── viewer management (admin) ── */
-  const handleApprove = async (username) => {
-    const ok = await approveViewer(username);
-    if (ok) { showToast(`✅ Approved ${username}`); refreshViewers(); }
-  };
-  const handleReject = async (username) => {
-    const ok = await rejectViewer(username);
-    if (ok) { showToast("Rejected"); refreshViewers(); }
-  };
   const handleRemoveViewer = (username) => {
     askConfirm(`Remove ${username} from your room?`, async () => {
       const ok = await removeViewer(username);
@@ -253,13 +270,8 @@ export default function GameScreen({ session, onLogout }) {
             {syncing ? "Syncing…" : lastSync ? "Live" : "—"}
           </div>
           {isAdmin && (
-            <button style={{ ...S.btn, ...S.btnGhost, position: "relative" }} onClick={() => setAdminOpen(true)}>
+            <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setAdminOpen(true)}>
               ⚙️ Admin
-              {pendingCount > 0 && (
-                <span style={{ position: "absolute", top: -4, right: -4, background: "#ff5c5c", color: "#fff", borderRadius: "50%", width: 18, height: 18, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
-                  {pendingCount}
-                </span>
-              )}
             </button>
           )}
           <button style={S.btnGhost} onClick={onLogout}>↩ Logout</button>
@@ -347,6 +359,8 @@ export default function GameScreen({ session, onLogout }) {
             const rank = getRank(i);
             const rankColors = [null, "#f5c842", "#c0c0d0", "#d48050"];
             const isDealer = i === dealerIdx && !elim;
+            const zone = elim ? null : pct >= 90 ? "danger" : pct >= 70 ? "warn" : null;
+            const joke = zone ? getZoneJoke(`${i}-${game.round}-${zone}`, zone) : null;
             return (
               <div key={i} style={{ ...S.pcard, opacity: elim ? .45 : 1, position: "relative" }}>
                 {elim && <div style={S.outBadge}>OUT</div>}
@@ -365,6 +379,15 @@ export default function GameScreen({ session, onLogout }) {
                 <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden", marginBottom: 12 }}>
                   <div style={{ height: "100%", width: `${pct}%`, background: pct >= 90 ? "#ff5c5c" : pct >= 70 ? "#ff8c42" : "#22c97a", borderRadius: 3, transition: "width .5s" }} />
                 </div>
+                {joke && (
+                  <div style={{
+                    fontSize: 12, fontStyle: "italic", marginBottom: 12, padding: "6px 10px", borderRadius: 8,
+                    color: zone === "danger" ? "#ff8c9a" : "#ffc98c",
+                    background: zone === "danger" ? "rgba(255,92,92,.08)" : "rgba(255,140,66,.08)",
+                  }}>
+                    {zone === "danger" ? "💀 " : "😬 "}{joke}
+                  </div>
+                )}
                 <div style={{ ...S.flex("row", "center"), justifyContent: "space-between" }}>
                   <div style={S.flex("row", "center", 16)}>
                     <div><div style={S.metaLbl}>Needs</div><div style={{ ...S.metaVal, color: elim ? "#6b6b8a" : "#ff5c5c" }}>{elim ? "—" : needs}</div></div>
@@ -486,16 +509,16 @@ export default function GameScreen({ session, onLogout }) {
         </div>
       )}
 
-      {/* WINNER OVERLAY */}
-      {winnerName && (
+      {/* WINNER OVERLAY — synced via game.winner so EVERYONE in the room sees it, not just the admin */}
+      {game.winner && showWinner && (
         <div style={S.overlayWrap}>
           <div style={S.winBox}>
             <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: "#a48cff", marginBottom: 4 }}>Game Over!</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#f5c842", marginBottom: 6 }}>{winnerName}</div>
-            <div style={{ color: "#6b6b8a", fontSize: 14, marginBottom: 24 }}>wins with the lowest score!</div>
-            {isAdmin && <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={() => { resetGame(); setWinnerName(null); }}>🎮 Play Again</button>}
-            {!isAdmin && <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setWinnerName(null)}>Close</button>}
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#f5c842", marginBottom: 6 }}>{game.winner}</div>
+            <div style={{ color: "#6b6b8a", fontSize: 14, marginBottom: 24 }}>wins with the lowest score! 🎉</div>
+            {isAdmin && <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={resetGame}>🎮 Play Again</button>}
+            {!isAdmin && <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowWinner(false)}>Close</button>}
           </div>
         </div>
       )}
@@ -536,25 +559,21 @@ export default function GameScreen({ session, onLogout }) {
             </div>
 
             <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-              {["players", "requests"].map(tab => (
+              {["players", "roomcode"].map(tab => (
                 <button key={tab} onClick={() => setAdminTab(tab)} style={{
                   ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 13,
                   background: adminTab === tab ? "rgba(124,109,250,.25)" : "rgba(255,255,255,.04)",
                   color: adminTab === tab ? "#a48cff" : "#9999bb",
-                  position: "relative",
                 }}>
-                  {tab === "players" ? "Your Players" : "Join Requests"}
-                  {tab === "requests" && pendingCount > 0 && (
-                    <span style={{ marginLeft: 6, background: "#ff5c5c", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{pendingCount}</span>
-                  )}
+                  {tab === "players" ? "Your Players" : "🔑 Room Code"}
                 </button>
               ))}
             </div>
 
             {adminTab === "players" && (
               <>
-                <div style={S.sectionLabel}>Approved Players in Your Room</div>
-                {viewers.filter(v => v.approved).map(v => (
+                <div style={S.sectionLabel}>Players in Your Room</div>
+                {viewers.map(v => (
                   <div key={v.username} style={{ ...S.flex("row", "center", 10), padding: "10px 12px", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 10, marginBottom: 8 }}>
                     <Avatar avatar={v.avatar} size={22} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -578,33 +597,32 @@ export default function GameScreen({ session, onLogout }) {
                     </div>
                   </div>
                 ))}
-                {viewers.filter(v => v.approved).length === 0 && (
+                {viewers.length === 0 && (
                   <div style={{ textAlign: "center", color: "#6b6b8a", padding: 16, fontSize: 13 }}>
-                    No approved players yet. Share your username (<b>{roomOwner}</b>) so friends can join.
+                    No players yet. Share your room code (see the "Room Code" tab) so friends can join instantly.
                   </div>
                 )}
               </>
             )}
 
-            {adminTab === "requests" && (
+            {adminTab === "roomcode" && (
               <>
-                <div style={S.sectionLabel}>Pending Join Requests</div>
-                {viewers.filter(v => !v.approved).map(v => (
-                  <div key={v.username} style={{ ...S.flex("row", "center", 10), padding: "10px 12px", background: "rgba(245,200,66,.08)", border: "1px solid rgba(245,200,66,.25)", borderRadius: 10, marginBottom: 8 }}>
-                    <Avatar avatar={v.avatar} size={22} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "#f0f0ff" }}>{v.name}</div>
-                      <div style={{ fontSize: 11, color: "#6b6b8a" }}>@{v.username}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button style={{ ...S.btn, ...S.btnGreen, padding: "5px 10px", minHeight: 30, fontSize: 12 }} onClick={() => handleApprove(v.username)}>✓ Approve</button>
-                      <button style={{ ...S.btn, ...S.btnRed, padding: "5px 10px", minHeight: 30, fontSize: 12 }} onClick={() => handleReject(v.username)}>✕</button>
-                    </div>
+                <div style={S.sectionLabel}>Your Room Code</div>
+                <div style={{ textAlign: "center", padding: "24px 16px", background: "rgba(124,109,250,.08)", border: "1px solid rgba(124,109,250,.25)", borderRadius: 14, marginBottom: 14 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 32, fontWeight: 800, letterSpacing: "0.1em", color: "#f5c842" }}>
+                    {roomCode || "…"}
                   </div>
-                ))}
-                {viewers.filter(v => !v.approved).length === 0 && (
-                  <div style={{ textAlign: "center", color: "#6b6b8a", padding: 16, fontSize: 13 }}>No pending requests</div>
-                )}
+                  <div style={{ fontSize: 12, color: "#9999bb", marginTop: 8 }}>
+                    Share this with friends — they'll enter it to join your room instantly, no approval needed.
+                  </div>
+                </div>
+                <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleRegenerateCode} disabled={regenBusy}>
+                  {regenBusy ? "Generating…" : "🔄 Generate New Code"}
+                </button>
+                <div style={{ fontSize: 11, color: "#6b6b8a", marginTop: 8, textAlign: "center" }}>
+                  Regenerating immediately invalidates the old code — anyone who hasn't joined yet will need the new one.
+                  Players who already joined are unaffected.
+                </div>
               </>
             )}
           </div>

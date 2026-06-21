@@ -41,17 +41,23 @@ export const DANGER_JOKES = [
   "You've officially entered 'why do I even play' territory.",
 ];
 
-/* Tracks recently shown jokes per player (by index) within a session,
-   to reduce immediate repeats without needing any storage/backend. */
-const recentByPlayer = {};
+/* Caches the chosen joke per exact key (player+round+zone), so repeated renders
+   within the same round return the SAME line. Also tracks recently-shown jokes
+   per player across rounds, so consecutive rounds don't repeat the same joke. */
+const jokeCache = {};       // key -> chosen joke (stable for that key's lifetime)
+const recentByPlayer = {};  // playerIndex -> last few jokes shown, across rounds
 
-export function getZoneJoke(playerKey, zone) {
+export function getZoneJoke(key, zone) {
+  if (jokeCache[key]) return jokeCache[key]; // already picked for this exact round+zone — don't re-roll
+
   const pool = zone === "danger" ? DANGER_JOKES : WARN_JOKES;
+  const playerKey = key.split("-")[0]; // recency tracked per player, not per exact key
   const recent = recentByPlayer[playerKey] || [];
   let candidates = pool.filter((j) => !recent.includes(j));
   if (candidates.length === 0) candidates = pool; // exhausted — allow repeats again
   const pick = candidates[Math.floor(Math.random() * candidates.length)];
-  const updated = [pick, ...recent].slice(0, Math.min(5, pool.length - 1));
-  recentByPlayer[playerKey] = updated;
+
+  jokeCache[key] = pick;
+  recentByPlayer[playerKey] = [pick, ...recent].slice(0, Math.min(5, pool.length - 1));
   return pick;
 }

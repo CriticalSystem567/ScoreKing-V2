@@ -6,6 +6,7 @@ import { getZoneJoke } from "../jokes.js";
 import {
   getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
   uploadAvatarPhoto, getRoomCode, regenerateRoomCode,
+  changeOwnName, changeOwnPin, switchRoom, leaveRoom,
 } from "../db.js";
 
 const POLL_MS = 3000;
@@ -28,6 +29,14 @@ export default function GameScreen({ session, onLogout }) {
   const toastTimer = useRef(null);
 
   const [adminOpen, setAdminOpen] = useState(false);
+  const [playerPanelOpen, setPlayerPanelOpen] = useState(false);
+  const [playerTab, setPlayerTab] = useState("profile"); // profile | switchroom
+  const [pNameVal, setPNameVal] = useState(session.name || "");
+  const [pCurrentPin, setPCurrentPin] = useState("");
+  const [pNewPin, setPNewPin] = useState("");
+  const [pNewRoomCode, setPNewRoomCode] = useState("");
+  const [playerBusy, setPlayerBusy] = useState(false);
+  const [playerErr, setPlayerErr] = useState("");
   const [adminTab, setAdminTab] = useState("players"); // players | roomcode
   const [setupPlayers, setSetupPlayers] = useState(4);
   const [setupMax, setSetupMax] = useState(200);
@@ -178,10 +187,20 @@ export default function GameScreen({ session, onLogout }) {
       if (!players[candidate].eliminated) { nextDealer = candidate; break; }
     }
 
+    // pick ONE joke per warn/danger player for this round, stored in synced state
+    // so every device shows the exact same line (no per-device randomness/flicker).
+    const jokes = {};
+    players.forEach((p, i) => {
+      if (p.eliminated) return;
+      const pct = Math.round((p.total / game.maxScore) * 100);
+      const zone = pct >= 90 ? "danger" : pct >= 70 ? "warn" : null;
+      if (zone) jokes[i] = { zone, text: getZoneJoke(`${i}`, zone) };
+    });
+
     const active = players.filter(p => !p.eliminated);
     const winner = active.length === 1 ? active[0].name : null;
 
-    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner };
+    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner, jokes };
     await pushGame(newG);
     setRoundInputs({});
     setShowWinner(true);
@@ -236,6 +255,44 @@ export default function GameScreen({ session, onLogout }) {
     showToast("📷 Photo updated");
   };
 
+  /* ── player self-service (viewer manages own profile/room) ── */
+  const handleSaveOwnName = async () => {
+    setPlayerErr("");
+    if (!pNameVal.trim()) { setPlayerErr("Enter a name"); return; }
+    setPlayerBusy(true);
+    const res = await changeOwnName(session.username, pNameVal);
+    setPlayerBusy(false);
+    if (!res.ok) { setPlayerErr(res.error); return; }
+    showToast("✅ Name updated");
+  };
+  const handleChangeOwnPin = async () => {
+    setPlayerErr("");
+    if (!/^\d{4}$/.test(pCurrentPin) || !/^\d{4}$/.test(pNewPin)) { setPlayerErr("Both PINs must be 4 digits"); return; }
+    setPlayerBusy(true);
+    const res = await changeOwnPin(session.username, pCurrentPin, pNewPin);
+    setPlayerBusy(false);
+    if (!res.ok) { setPlayerErr(res.error); return; }
+    setPCurrentPin(""); setPNewPin("");
+    showToast("✅ PIN updated — use the new one next time you log in");
+  };
+  const handleSwitchRoom = async () => {
+    setPlayerErr("");
+    if (!pNewRoomCode.trim()) { setPlayerErr("Enter a room code"); return; }
+    setPlayerBusy(true);
+    const res = await switchRoom(session.username, pNewRoomCode.trim());
+    setPlayerBusy(false);
+    if (!res.ok) { setPlayerErr(res.error); return; }
+    showToast("✅ Switched rooms! Log back in to enter your new room.");
+    setTimeout(onLogout, 1500); // same username/PIN still work — they'll land in the new room on next login
+  };
+  const handleLeaveRoom = () => {
+    askConfirm("Leave this room? You can join another anytime with your same username and PIN.", async () => {
+      const ok = await leaveRoom(session.username);
+      if (ok) { showToast("Left the room"); setTimeout(onLogout, 800); }
+      else showToast("⚠️ Failed to leave");
+    });
+  };
+
   /* ── helpers ── */
   const getRank = (idx) => {
     if (!game) return 0;
@@ -273,6 +330,11 @@ export default function GameScreen({ session, onLogout }) {
           {isAdmin && (
             <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setAdminOpen(true)}>
               ⚙️ Admin
+            </button>
+          )}
+          {!isAdmin && (
+            <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => { setPlayerPanelOpen(true); setPlayerErr(""); }}>
+              👤 My Profile
             </button>
           )}
           <button style={S.btnGhost} onClick={onLogout}>↩ Logout</button>
@@ -361,7 +423,7 @@ export default function GameScreen({ session, onLogout }) {
             const rankColors = [null, "#f5c842", "#c0c0d0", "#d48050"];
             const isDealer = i === dealerIdx && !elim;
             const zone = elim ? null : pct >= 90 ? "danger" : pct >= 70 ? "warn" : null;
-            const joke = zone ? getZoneJoke(`${i}-${game.round}-${zone}`, zone) : null;
+            const joke = zone ? game.jokes?.[i]?.text : null;
             return (
               <div key={i} style={{ ...S.pcard, opacity: elim ? .45 : 1, position: "relative" }}>
                 {elim && <div style={S.outBadge}>OUT</div>}
@@ -638,6 +700,86 @@ export default function GameScreen({ session, onLogout }) {
                   Players who already joined are unaffected.
                 </div>
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PLAYER PROFILE PANEL (viewer self-service: name, PIN, switch/leave room) */}
+      {playerPanelOpen && (
+        <div style={S.overlayWrap}>
+          <div style={{ ...S.winBox, maxWidth: 420, maxHeight: "90vh", overflowY: "auto", textAlign: "left", padding: 24 }}>
+            <div style={{ ...S.flex("row", "center"), justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#a48cff" }}>👤 My Profile</div>
+              <button style={{ ...S.btn, ...S.btnGhost, padding: "5px 12px", minHeight: 30, fontSize: 13 }}
+                onClick={() => { setPlayerPanelOpen(false); setPlayerErr(""); setPCurrentPin(""); setPNewPin(""); setPNewRoomCode(""); }}>✕ Close</button>
+            </div>
+
+            <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+              {["profile", "switchroom"].map(tab => (
+                <button key={tab} onClick={() => { setPlayerTab(tab); setPlayerErr(""); }} style={{
+                  ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 13,
+                  background: playerTab === tab ? "rgba(124,109,250,.25)" : "rgba(255,255,255,.04)",
+                  color: playerTab === tab ? "#a48cff" : "#9999bb",
+                }}>
+                  {tab === "profile" ? "Name & PIN" : "Switch Room"}
+                </button>
+              ))}
+            </div>
+
+            {playerTab === "profile" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={S.fieldLabel}>Display name</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input style={{ ...S.input, flex: 1 }} value={pNameVal} onChange={e => setPNameVal(e.target.value)} />
+                    <button style={{ ...S.btn, ...S.btnAccent, padding: "8px 14px", minHeight: 44 }} onClick={handleSaveOwnName} disabled={playerBusy}>Save</button>
+                  </div>
+                </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,.08)" }} />
+
+                <div>
+                  <div style={S.sectionLabel}>Change PIN</div>
+                  <label style={S.fieldLabel}>Current PIN</label>
+                  <input style={{ ...S.input, marginBottom: 10 }} type="password" inputMode="numeric" maxLength={4}
+                    value={pCurrentPin} onChange={e => setPCurrentPin(e.target.value.replace(/\D/g, ""))} />
+                  <label style={S.fieldLabel}>New 4-digit PIN</label>
+                  <input style={{ ...S.input, marginBottom: 10 }} type="password" inputMode="numeric" maxLength={4}
+                    value={pNewPin} onChange={e => setPNewPin(e.target.value.replace(/\D/g, ""))} />
+                  <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={handleChangeOwnPin} disabled={playerBusy}>
+                    {playerBusy ? "Updating…" : "Update PIN"}
+                  </button>
+                </div>
+
+                {playerErr && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{playerErr}</div>}
+
+                <div style={{ height: 1, background: "rgba(255,255,255,.08)" }} />
+
+                <button style={{ ...S.btn, ...S.btnRed, width: "100%" }} onClick={handleLeaveRoom}>
+                  🚪 Leave This Room
+                </button>
+              </div>
+            )}
+
+            {playerTab === "switchroom" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ fontSize: 13, color: "#9999bb" }}>
+                  Currently in: <b style={{ color: "#f5c842" }}>{roomOwner}</b>'s room
+                </div>
+                <div>
+                  <label style={S.fieldLabel}>New room code</label>
+                  <input style={{ ...S.input, fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
+                    value={pNewRoomCode} onChange={e => setPNewRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10} />
+                </div>
+                {playerErr && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{playerErr}</div>}
+                <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={handleSwitchRoom} disabled={playerBusy}>
+                  {playerBusy ? "Switching…" : "Switch Room"}
+                </button>
+                <div style={{ fontSize: 11, color: "#6b6b8a", textAlign: "center" }}>
+                  Your username and PIN stay the same — you'll just be logged out and need to log back in to enter the new room.
+                </div>
+              </div>
             )}
           </div>
         </div>

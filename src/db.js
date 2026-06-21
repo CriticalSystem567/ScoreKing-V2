@@ -201,6 +201,36 @@ export async function removeViewer(username) {
   return !error;
 }
 
+/* ─── SELF-SERVICE (player manages their own profile) ─── */
+export async function changeOwnName(username, newName) {
+  if (!newName.trim()) return { ok: false, error: "Enter a name" };
+  const { error } = await supabase.from("viewers").update({ name: newName.trim() }).eq("username", norm(username));
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+export async function changeOwnPin(username, currentPin, newPin) {
+  if (!/^\d{4}$/.test(newPin)) return { ok: false, error: "New PIN must be 4 digits" };
+  const u = norm(username);
+  const { data, error } = await supabase.from("viewers").select("pin").eq("username", u).maybeSingle();
+  if (error || !data) return { ok: false, error: "Account not found" };
+  if (data.pin !== currentPin) return { ok: false, error: "Current PIN is incorrect" };
+  const { error: updErr } = await supabase.from("viewers").update({ pin: newPin }).eq("username", u);
+  if (updErr) return { ok: false, error: updErr.message };
+  return { ok: true };
+}
+/* Leave the current room and join a different one by room code, keeping the same username/PIN. */
+export async function switchRoom(username, newRoomCode) {
+  const adminUsername = await findAdminByRoomCode(newRoomCode);
+  if (!adminUsername) return { ok: false, error: "Room code not found — check it with your host" };
+  const { error } = await supabase.from("viewers").update({ admin_username: adminUsername }).eq("username", norm(username));
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, adminUsername };
+}
+export async function leaveRoom(username) {
+  const { error } = await supabase.from("viewers").delete().eq("username", norm(username));
+  return !error;
+}
+
 /* ─── AVATAR PHOTO UPLOAD (reused from v1) ─── */
 export async function uploadAvatarPhoto(file, idHint) {
   try {

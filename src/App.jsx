@@ -34,7 +34,7 @@ export default function App() {
   if (screen === "superadmin") return <SuperAdminScreen onExit={goLanding} />;
 
   if (session?.role === "admin" || session?.role === "viewer") {
-    return <GameScreen session={session} onLogout={goLanding} />;
+    return <GameScreen session={session} onLogout={goLanding} onUpdateSession={(patch) => setSession(prev => ({ ...prev, ...patch }))} />;
   }
 
   switch (screen) {

@@ -96,6 +96,11 @@ export async function loginAdmin(username, password) {
   return { ok: true, admin: data };
 }
 
+export async function changeAdminAvatar(username, avatarUrl) {
+  const { error } = await supabase.from("admins").update({ avatar: avatarUrl }).eq("username", norm(username));
+  return !error;
+}
+
 export async function getAdminSecurityQuestion(username) {
   const { data } = await supabase.from("admins").select("security_question").eq("username", norm(username)).maybeSingle();
   return data?.security_question || null;

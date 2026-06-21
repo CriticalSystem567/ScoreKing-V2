@@ -6,13 +6,13 @@ import { getZoneJoke, getWinnerLine } from "../jokes.js";
 import {
   getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
   uploadAvatarPhoto, getRoomCode, regenerateRoomCode, setRoomLocked,
-  changeOwnName, changeOwnPin, switchRoom, leaveRoom,
+  changeOwnName, changeOwnPin, switchRoom, leaveRoom, changeAdminAvatar,
   recordFinishedGame, getMyGameHistory, getAdminGameHistory,
 } from "../db.js";
 
 const POLL_MS = 3000;
 
-export default function GameScreen({ session, onLogout }) {
+export default function GameScreen({ session, onLogout, onUpdateSession }) {
   const isAdmin = session.role === "admin";
   const roomOwner = isAdmin ? session.username : session.adminUsername;
 
@@ -174,7 +174,9 @@ export default function GameScreen({ session, onLogout }) {
     const old = game.players || [];
     const players = Array.from({ length: n }, (_, i) => old[i] || { name: `Player ${i + 1}`, total: 0, lastAdded: 0, eliminated: false });
     const dealerIndex = Math.min(setupDealer, n - 1);
-    await pushGame({ ...game, numPlayers: n, maxScore: setupMax, players, dealerIndex });
+    const maxScore = (setupMax === "" || +setupMax < 10) ? 200 : +setupMax;
+    setSetupMax(maxScore);
+    await pushGame({ ...game, numPlayers: n, maxScore, players, dealerIndex });
     setRoundInputs({});
     showToast("✓ Settings applied");
   };
@@ -298,7 +300,20 @@ export default function GameScreen({ session, onLogout }) {
     if (!url) { showToast("⚠️ Upload failed"); return; }
     await updateViewer(username, { avatar: url });
     refreshViewers();
+    if (username.trim().toLowerCase() === session.username.trim().toLowerCase()) onUpdateSession?.({ avatar: url }); // own photo — reflect instantly, no relogin needed
     setEditPhotoUsername(null);
+    showToast("📷 Photo updated");
+  };
+
+  const handleAdminPhotoSelect = async (file) => {
+    if (!file || !file.type.startsWith("image/")) { showToast("Please choose an image file"); return; }
+    setPhotoUploading(true);
+    const url = await uploadAvatarPhoto(file, session.username);
+    setPhotoUploading(false);
+    if (!url) { showToast("⚠️ Upload failed"); return; }
+    const ok = await changeAdminAvatar(session.username, url);
+    if (!ok) { showToast("⚠️ Failed to save photo"); return; }
+    onUpdateSession?.({ avatar: url });
     showToast("📷 Photo updated");
   };
 
@@ -447,7 +462,10 @@ export default function GameScreen({ session, onLogout }) {
             </div>
             <div>
               <label style={S.fieldLabel}>Out at score</label>
-              <input style={S.input} type="number" value={setupMax} onChange={e => setSetupMax(+e.target.value || 200)} min={10} inputMode="numeric" />
+              <input style={S.input} type="number" value={setupMax} onFocus={e => e.target.select()}
+                onChange={e => setSetupMax(e.target.value === "" ? "" : +e.target.value)}
+                onBlur={e => { if (e.target.value === "" || +e.target.value < 10) setSetupMax(200); }}
+                min={10} inputMode="numeric" />
             </div>
           </div>
           <div style={{ marginBottom: 12 }}>
@@ -733,6 +751,22 @@ export default function GameScreen({ session, onLogout }) {
               <div style={{ fontWeight: 700, fontSize: 18, color: "#a48cff" }}>⚙️ Admin Panel</div>
               <button style={{ ...S.btn, ...S.btnGhost, padding: "5px 12px", minHeight: 30, fontSize: 13 }} onClick={() => { setAdminOpen(false); setEditNameIdx(null); setEditPhotoUsername(null); }}>✕ Close</button>
             </div>
+
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+              <div style={{ position: "relative" }}>
+                <Avatar avatar={session.avatar || "👑"} size={72} />
+                <label style={{
+                  position: "absolute", bottom: -4, right: -4, background: "#7c6dfa", borderRadius: "50%",
+                  width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", fontSize: 12, border: "2px solid #1a1a2e",
+                }}>
+                  📷
+                  <input type="file" accept="image/*" style={{ display: "none" }}
+                    onChange={e => handleAdminPhotoSelect(e.target.files?.[0])} disabled={photoUploading} />
+                </label>
+              </div>
+            </div>
+            {photoUploading && <div style={{ textAlign: "center", fontSize: 12, color: "#9999bb", marginBottom: 12 }}>Uploading…</div>}
 
             <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
               {["players", "roomcode", "history"].map(tab => (

@@ -52,19 +52,26 @@ export async function usernameTaken(username) {
 export async function signUpAdmin({ username, password, securityQuestion, securityAnswer, inviteCode }) {
   const u = norm(username);
   if (await usernameTaken(u)) return { ok: false, error: "Username already taken" };
-  const check = await checkInviteCode(inviteCode);
-  if (!check.valid) return { ok: false, error: check.reason };
+
+  // Invite codes are no longer required to sign up as an admin (open signup).
+  // If a code IS provided, still validate + consume it (keeps the door open to
+  // re-enabling gatekeeping later without touching this function again).
+  let usedCode = null;
+  if (inviteCode && inviteCode.trim()) {
+    const check = await checkInviteCode(inviteCode.trim());
+    if (check.valid) usedCode = inviteCode.trim();
+  }
 
   const { error } = await supabase.from("admins").insert({
     username: u,
     password,
     security_question: securityQuestion,
     security_answer: norm(securityAnswer),
-    invite_code: inviteCode,
+    invite_code: usedCode,
   });
   if (error) return { ok: false, error: "Could not create account: " + error.message };
 
-  await consumeInviteCode(inviteCode, u);
+  if (usedCode) await consumeInviteCode(usedCode, u);
 
   // create their room with a fresh, unique room code (retry on rare collision)
   let roomCode = genRoomCode();

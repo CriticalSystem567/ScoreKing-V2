@@ -4,7 +4,6 @@ import { SECURITY_QUESTIONS } from "../constants.js";
 import { signUpAdmin } from "../db.js";
 
 export default function AdminSignupScreen({ onBack, onDone }) {
-  const [inviteCode, setInviteCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -15,7 +14,6 @@ export default function AdminSignupScreen({ onBack, onDone }) {
 
   const submit = async () => {
     setErr("");
-    if (!inviteCode.trim()) return setErr("Enter your invite code");
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) return setErr("Username must be 3-20 letters/numbers/underscores");
     if (password.length < 4) return setErr("Password must be at least 4 characters");
     if (password !== confirmPw) return setErr("Passwords don't match");
@@ -27,7 +25,6 @@ export default function AdminSignupScreen({ onBack, onDone }) {
       password,
       securityQuestion: question,
       securityAnswer: answer,
-      inviteCode: inviteCode.trim().toUpperCase(),
     });
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
@@ -41,10 +38,6 @@ export default function AdminSignupScreen({ onBack, onDone }) {
         <div style={S.logoSub}>Create your admin account</div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
-          <div>
-            <label style={S.fieldLabel}>Invite code</label>
-            <input style={S.input} value={inviteCode} onChange={e => setInviteCode(e.target.value)} placeholder="e.g. AB3DKX9P" autoCapitalize="characters" />
-          </div>
           <div>
             <label style={S.fieldLabel}>Choose a username</label>
             <input style={S.input} value={username} onChange={e => setUsername(e.target.value)} placeholder="e.g. yogi" autoCapitalize="none" />

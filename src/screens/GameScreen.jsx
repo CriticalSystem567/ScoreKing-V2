@@ -7,6 +7,7 @@ import {
   getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
   uploadAvatarPhoto, getRoomCode, regenerateRoomCode,
   changeOwnName, changeOwnPin, switchRoom, leaveRoom,
+  recordFinishedGame, getMyGameHistory,
 } from "../db.js";
 
 const POLL_MS = 3000;
@@ -30,7 +31,9 @@ export default function GameScreen({ session, onLogout }) {
 
   const [adminOpen, setAdminOpen] = useState(false);
   const [playerPanelOpen, setPlayerPanelOpen] = useState(false);
-  const [playerTab, setPlayerTab] = useState("profile"); // profile | switchroom
+  const [playerTab, setPlayerTab] = useState("profile"); // profile | switchroom | history
+  const [myHistory, setMyHistory] = useState(null); // null = not loaded yet
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [pNameVal, setPNameVal] = useState(session.name || "");
   const [pCurrentPin, setPCurrentPin] = useState("");
   const [pNewPin, setPNewPin] = useState("");
@@ -153,6 +156,7 @@ export default function GameScreen({ session, onLogout }) {
   };
 
   const addRound = async () => {
+    if (syncing) return; // guard against double-tap/double-submit (was causing duplicate rounds + jokes re-rolling)
     const scores = roundInputs;
     let any = false;
     const dealerIdx = game.dealerIndex || 0;
@@ -210,8 +214,21 @@ export default function GameScreen({ session, onLogout }) {
   };
 
   const resetGame = async () => {
+    // Record the game that's about to be wiped, so every participating viewer keeps
+    // a permanent personal record of it — match by (case-insensitive) display name
+    // against the room's actual viewer accounts, since admin-typed "Player 1" etc.
+    // have no real account to attach history to.
+    if (game.history && game.history.length > 0) {
+      const viewerUsernameByPlayerIndex = {};
+      game.players.forEach((p, i) => {
+        const match = viewers.find(v => v.name.trim().toLowerCase() === p.name.trim().toLowerCase());
+        if (match) viewerUsernameByPlayerIndex[i] = match.username;
+      });
+      recordFinishedGame({ adminUsername: roomOwner, game, viewerUsernameByPlayerIndex }).catch(console.error);
+    }
+
     const players = game.players.map(p => ({ ...p, total: 0, lastAdded: 0, eliminated: false }));
-    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null });
+    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, jokes: {} });
     setRoundInputs({});
     setShowWinner(true);
     showToast("Game reset!");
@@ -291,6 +308,13 @@ export default function GameScreen({ session, onLogout }) {
       if (ok) { showToast("Left the room"); setTimeout(onLogout, 800); }
       else showToast("⚠️ Failed to leave");
     });
+  };
+
+  const loadMyHistory = async () => {
+    setHistoryLoading(true);
+    const records = await getMyGameHistory(session.username);
+    setMyHistory(records);
+    setHistoryLoading(false);
   };
 
   /* ── helpers ── */
@@ -534,7 +558,9 @@ export default function GameScreen({ session, onLogout }) {
       {/* ACTION BAR (admin only) */}
       {isAdmin && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <button style={{ ...S.btn, ...S.btnGreen, gridColumn: "span 2" }} onClick={addRound}>▶ Add Round</button>
+          <button style={{ ...S.btn, ...S.btnGreen, gridColumn: "span 2" }} onClick={addRound} disabled={syncing}>
+            {syncing ? "Saving…" : "▶ Add Round"}
+          </button>
           <button style={{ ...S.btn, ...S.btnRed }} onClick={() => askConfirm("Reset game?", resetGame)}>↺ Reset</button>
           <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setShowHistory(v => !v)}>📊 History</button>
           <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={handleExport}>⬇ Export CSV</button>
@@ -715,14 +741,14 @@ export default function GameScreen({ session, onLogout }) {
                 onClick={() => { setPlayerPanelOpen(false); setPlayerErr(""); setPCurrentPin(""); setPNewPin(""); setPNewRoomCode(""); }}>✕ Close</button>
             </div>
 
-            <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-              {["profile", "switchroom"].map(tab => (
-                <button key={tab} onClick={() => { setPlayerTab(tab); setPlayerErr(""); }} style={{
+            <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+              {["profile", "switchroom", "history"].map(tab => (
+                <button key={tab} onClick={() => { setPlayerTab(tab); setPlayerErr(""); if (tab === "history" && myHistory === null) loadMyHistory(); }} style={{
                   ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 13,
                   background: playerTab === tab ? "rgba(124,109,250,.25)" : "rgba(255,255,255,.04)",
                   color: playerTab === tab ? "#a48cff" : "#9999bb",
                 }}>
-                  {tab === "profile" ? "Name & PIN" : "Switch Room"}
+                  {tab === "profile" ? "Name & PIN" : tab === "switchroom" ? "Switch Room" : "📜 History"}
                 </button>
               ))}
             </div>
@@ -779,6 +805,55 @@ export default function GameScreen({ session, onLogout }) {
                 <div style={{ fontSize: 11, color: "#6b6b8a", textAlign: "center" }}>
                   Your username and PIN stay the same — you'll just be logged out and need to log back in to enter the new room.
                 </div>
+              </div>
+            )}
+
+            {playerTab === "history" && (
+              <div>
+                {historyLoading && <div style={{ textAlign: "center", color: "#6b6b8a", padding: 20, fontSize: 13 }}>Loading…</div>}
+                {!historyLoading && myHistory && myHistory.length === 0 && (
+                  <div style={{ textAlign: "center", color: "#6b6b8a", padding: 20, fontSize: 13 }}>
+                    No completed games yet. Your history fills in here once a game you've played finishes or resets.
+                  </div>
+                )}
+                {!historyLoading && myHistory && myHistory.length > 0 && (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+                      <div style={S.statBox}>
+                        <div style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 700, color: "#a48cff" }}>{myHistory.length}</div>
+                        <div style={{ fontSize: 10, color: "#6b6b8a", marginTop: 4, textTransform: "uppercase" }}>Played</div>
+                      </div>
+                      <div style={S.statBox}>
+                        <div style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 700, color: "#f5c842" }}>{myHistory.filter(r => r.won).length}</div>
+                        <div style={{ fontSize: 10, color: "#6b6b8a", marginTop: 4, textTransform: "uppercase" }}>Won</div>
+                      </div>
+                      <div style={S.statBox}>
+                        <div style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 700, color: "#ff5c5c" }}>{myHistory.filter(r => r.eliminated).length}</div>
+                        <div style={{ fontSize: 10, color: "#6b6b8a", marginTop: 4, textTransform: "uppercase" }}>Eliminated</div>
+                      </div>
+                    </div>
+
+                    <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                      {myHistory.map(r => (
+                        <div key={r.id} style={{
+                          padding: "10px 12px", marginBottom: 8, borderRadius: 10,
+                          background: r.won ? "rgba(245,200,66,.08)" : "rgba(255,255,255,.04)",
+                          border: `1px solid ${r.won ? "rgba(245,200,66,.25)" : "rgba(255,255,255,.07)"}`,
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: r.won ? "#f5c842" : "#f0f0ff" }}>
+                              {r.won ? "🏆 Won" : r.eliminated ? "❌ Eliminated" : "Game ended"} — room: {r.admin_username}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#6b6b8a" }}>{new Date(r.ended_at).toLocaleDateString()}</div>
+                          </div>
+                          <div style={{ fontSize: 12, color: "#9999bb" }}>
+                            Final score: <b style={{ color: "#f0f0ff" }}>{r.final_score}</b> · {r.rounds_played} round{r.rounds_played !== 1 ? "s" : ""} played
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

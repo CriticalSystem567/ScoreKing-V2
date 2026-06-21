@@ -231,6 +231,60 @@ export async function leaveRoom(username) {
   return !error;
 }
 
+/* ─── PERSISTENT PERSONAL GAME HISTORY ───
+   Recorded once per game (on reset/replay or natural end-with-winner), survives
+   room switches, resets, and even a player being removed from a room. */
+export async function recordFinishedGame({ adminUsername, game, viewerUsernameByPlayerIndex }) {
+  // viewerUsernameByPlayerIndex: { [playerIndex]: username } — only players who are
+  // actual logged-in viewers (not just admin-typed names) get a personal record.
+  if (!game.history || game.history.length === 0) return { ok: true, skipped: true }; // nothing played, don't record an empty game
+
+  const finalStandings = game.players.map(p => ({ name: p.name, total: p.total, eliminated: p.eliminated }));
+
+  const { data: recordRow, error: recErr } = await supabase.from("game_records").insert({
+    admin_username: norm(adminUsername),
+    winner: game.winner || null,
+    max_score: game.maxScore,
+    rounds_played: game.round - 1,
+    full_history: game.history,
+    final_standings: finalStandings,
+  }).select("id").single();
+
+  if (recErr || !recordRow) return { ok: false, error: recErr?.message || "Failed to create game record" };
+
+  const rows = [];
+  game.players.forEach((p, i) => {
+    const username = viewerUsernameByPlayerIndex[i];
+    if (!username) return; // admin-typed player with no real account — nothing to attach history to
+    rows.push({
+      game_record_id: recordRow.id,
+      username: norm(username),
+      player_name: p.name,
+      admin_username: norm(adminUsername),
+      final_score: p.total,
+      eliminated: p.eliminated,
+      won: game.winner === p.name,
+      rounds_played: game.round - 1,
+    });
+  });
+
+  if (rows.length > 0) {
+    const { error: prErr } = await supabase.from("player_game_results").insert(rows);
+    if (prErr) return { ok: false, error: prErr.message };
+  }
+  return { ok: true };
+}
+
+export async function getMyGameHistory(username) {
+  const { data, error } = await supabase
+    .from("player_game_results")
+    .select("*, game_records(full_history, final_standings)")
+    .eq("username", norm(username))
+    .order("ended_at", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
 /* ─── AVATAR PHOTO UPLOAD (reused from v1) ─── */
 export async function uploadAvatarPhoto(file, idHint) {
   try {

@@ -311,6 +311,17 @@ export async function getMyGameHistory(username) {
   return data || [];
 }
 
+/* Every game ever recorded in an admin's room — who won, when, how many rounds. */
+export async function getAdminGameHistory(adminUsername) {
+  const { data, error } = await supabase
+    .from("game_records")
+    .select("*")
+    .eq("admin_username", norm(adminUsername))
+    .order("ended_at", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
 /* ─── AVATAR PHOTO UPLOAD (reused from v1) ─── */
 export async function uploadAvatarPhoto(file, idHint) {
   try {

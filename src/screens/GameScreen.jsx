@@ -7,7 +7,7 @@ import {
   getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
   uploadAvatarPhoto, getRoomCode, regenerateRoomCode, setRoomLocked,
   changeOwnName, changeOwnPin, switchRoom, leaveRoom,
-  recordFinishedGame, getMyGameHistory,
+  recordFinishedGame, getMyGameHistory, getAdminGameHistory,
 } from "../db.js";
 
 const POLL_MS = 3000;
@@ -33,6 +33,8 @@ export default function GameScreen({ session, onLogout }) {
   const [playerPanelOpen, setPlayerPanelOpen] = useState(false);
   const [playerTab, setPlayerTab] = useState("profile"); // profile | switchroom | history
   const [myHistory, setMyHistory] = useState(null); // null = not loaded yet
+  const [adminHistory, setAdminHistory] = useState(null);
+  const [adminHistoryLoading, setAdminHistoryLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [pNameVal, setPNameVal] = useState(session.name || "");
   const [pCurrentPin, setPCurrentPin] = useState("");
@@ -347,6 +349,13 @@ export default function GameScreen({ session, onLogout }) {
     setHistoryLoading(false);
   };
 
+  const loadAdminHistory = async () => {
+    setAdminHistoryLoading(true);
+    const records = await getAdminGameHistory(roomOwner);
+    setAdminHistory(records);
+    setAdminHistoryLoading(false);
+  };
+
   /* ── helpers ── */
   const getRank = (idx) => {
     if (!game) return 0;
@@ -388,13 +397,13 @@ export default function GameScreen({ session, onLogout }) {
       {/* TOP BAR */}
       <div style={S.topBar}>
         <div
-          style={{ ...S.flex("row", "center", 8), cursor: !isAdmin ? "pointer" : "default" }}
-          onClick={!isAdmin ? () => { setPlayerPanelOpen(true); setPlayerErr(""); } : undefined}
+          style={{ ...S.flex("row", "center", 8), cursor: "pointer" }}
+          onClick={isAdmin ? () => setAdminOpen(true) : () => { setPlayerPanelOpen(true); setPlayerErr(""); }}
         >
           <Avatar avatar={session.avatar || (isAdmin ? "👑" : "🎮")} size={20} />
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: "#f0f0ff" }}>{session.name || session.username}</div>
-            <div style={{ fontSize: 11, color: "#6b6b8a" }}>{isAdmin ? "Admin · " + session.username : "Player @ " + roomOwner + " · tap to edit"}</div>
+            <div style={{ fontSize: 11, color: "#6b6b8a" }}>{isAdmin ? "Admin · " + session.username + " · tap to manage" : "Player @ " + roomOwner + " · tap to edit"}</div>
           </div>
         </div>
         <div style={S.flex("row", "center", 8)}>
@@ -402,12 +411,6 @@ export default function GameScreen({ session, onLogout }) {
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: syncing ? "#f5c842" : "#22c97a", display: "inline-block" }} />
             {syncing ? "Syncing…" : lastSync ? "Live" : "—"}
           </div>
-          {isAdmin && (
-            <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setAdminOpen(true)}>
-              ⚙️ Admin
-            </button>
-          )}
-          <button style={S.btnGhost} onClick={onLogout}>↩ Logout</button>
         </div>
       </div>
 
@@ -542,8 +545,8 @@ export default function GameScreen({ session, onLogout }) {
                     <div><div style={S.metaLbl}>Last +</div><div style={{ ...S.metaVal, color: p.lastAdded > 0 ? "#22c97a" : "#6b6b8a" }}>{p.lastAdded > 0 ? `+${p.lastAdded}` : "—"}</div></div>
                     <div>
                       <div style={S.metaLbl}>Status</div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: elim ? "#6b6b8a" : pct >= 90 ? "#ff5c5c" : pct >= 70 ? "#ff8c42" : "#22c97a" }}>
-                        {elim ? "OUT" : pct >= 90 ? "DANGER" : pct >= 70 ? "WARN" : "SAFE"}
+                      <div style={{ fontSize: 11, fontWeight: 700, color: game.winner === p.name ? "#f5c842" : elim ? "#6b6b8a" : pct >= 90 ? "#ff5c5c" : pct >= 70 ? "#ff8c42" : "#22c97a" }}>
+                        {game.winner === p.name ? "🏆 WON" : elim ? "OUT" : pct >= 90 ? "DANGER" : pct >= 70 ? "WARN" : "SAFE"}
                       </div>
                     </div>
                   </div>
@@ -594,8 +597,8 @@ export default function GameScreen({ session, onLogout }) {
                     </td>
                     <td style={{ ...S.td, fontFamily: "monospace", fontWeight: 700 }}>{p.total}</td>
                     <td style={{ ...S.td, color: elim ? "#6b6b8a" : "#ff5c5c" }}>{elim ? "—" : needs}</td>
-                    <td style={{ ...S.td, fontWeight: 700, fontSize: 11, color: elim ? "#6b6b8a" : pct >= 90 ? "#ff5c5c" : pct >= 70 ? "#ff8c42" : "#22c97a" }}>
-                      {elim ? "OUT" : pct >= 90 ? "DANGER" : pct >= 70 ? "WARN" : "SAFE"}
+                    <td style={{ ...S.td, fontWeight: 700, fontSize: 11, color: game.winner === p.name ? "#f5c842" : elim ? "#6b6b8a" : pct >= 90 ? "#ff5c5c" : pct >= 70 ? "#ff8c42" : "#22c97a" }}>
+                      {game.winner === p.name ? "🏆 WON" : elim ? "OUT" : pct >= 90 ? "DANGER" : pct >= 70 ? "WARN" : "SAFE"}
                     </td>
                     {isAdmin && (
                       <td style={S.td}>
@@ -731,14 +734,14 @@ export default function GameScreen({ session, onLogout }) {
               <button style={{ ...S.btn, ...S.btnGhost, padding: "5px 12px", minHeight: 30, fontSize: 13 }} onClick={() => { setAdminOpen(false); setEditNameIdx(null); setEditPhotoUsername(null); }}>✕ Close</button>
             </div>
 
-            <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-              {["players", "roomcode"].map(tab => (
-                <button key={tab} onClick={() => setAdminTab(tab)} style={{
+            <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+              {["players", "roomcode", "history"].map(tab => (
+                <button key={tab} onClick={() => { setAdminTab(tab); if (tab === "history" && adminHistory === null) loadAdminHistory(); }} style={{
                   ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 13,
                   background: adminTab === tab ? "rgba(124,109,250,.25)" : "rgba(255,255,255,.04)",
                   color: adminTab === tab ? "#a48cff" : "#9999bb",
                 }}>
-                  {tab === "players" ? "Your Players" : "🔑 Room Code"}
+                  {tab === "players" ? "Your Players" : tab === "roomcode" ? "🔑 Room Code" : "📜 History"}
                 </button>
               ))}
             </div>
@@ -819,6 +822,44 @@ export default function GameScreen({ session, onLogout }) {
                 </button>
               </>
             )}
+
+            {adminTab === "history" && (
+              <div>
+                <div style={S.sectionLabel}>Games Played in Your Room</div>
+                {adminHistoryLoading && <div style={{ textAlign: "center", color: "#6b6b8a", padding: 20, fontSize: 13 }}>Loading…</div>}
+                {!adminHistoryLoading && adminHistory && adminHistory.length === 0 && (
+                  <div style={{ textAlign: "center", color: "#6b6b8a", padding: 20, fontSize: 13 }}>
+                    No completed games yet. This fills in once you reset or finish a game.
+                  </div>
+                )}
+                {!adminHistoryLoading && adminHistory && adminHistory.length > 0 && (
+                  <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                    {adminHistory.map(r => (
+                      <div key={r.id} style={{
+                        padding: "10px 12px", marginBottom: 8, borderRadius: 10,
+                        background: r.winner ? "rgba(245,200,66,.08)" : "rgba(255,255,255,.04)",
+                        border: `1px solid ${r.winner ? "rgba(245,200,66,.25)" : "rgba(255,255,255,.07)"}`,
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: r.winner ? "#f5c842" : "#f0f0ff" }}>
+                            {r.winner ? `🏆 ${r.winner} won` : "Ended without a winner"}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#6b6b8a" }}>{new Date(r.ended_at).toLocaleDateString()}</div>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#9999bb" }}>
+                          {r.rounds_played} round{r.rounds_played !== 1 ? "s" : ""} · max score {r.max_score} · {(r.final_standings || []).length} players
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "18px 0 14px" }} />
+            <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onLogout}>
+              ↩ Logout
+            </button>
           </div>
         </div>
       )}
@@ -896,6 +937,12 @@ export default function GameScreen({ session, onLogout }) {
                 <div style={{ fontSize: 11, color: "#6b6b8a", textAlign: "center" }}>
                   Your username, PIN, and game history stay safe — you'll just need a new room code to join somewhere else.
                 </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,.08)" }} />
+
+                <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onLogout}>
+                  ↩ Logout
+                </button>
               </div>
             )}
 

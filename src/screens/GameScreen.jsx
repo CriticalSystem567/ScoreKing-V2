@@ -6,7 +6,7 @@ import { getZoneJoke, getWinnerLine } from "../jokes.js";
 import {
   getRoomGame, setRoomGame, listViewersForAdmin, updateViewer, removeViewer,
   uploadAvatarPhoto, getRoomCode, regenerateRoomCode, setRoomLocked,
-  changeOwnName, changeOwnPin, switchRoom, leaveRoom, changeAdminAvatar,
+  changeOwnName, changeOwnPin, switchRoom, leaveRoom, changeAdminAvatar, changeAdminName,
   recordFinishedGame, getMyGameHistory, getAdminGameHistory,
 } from "../db.js";
 
@@ -37,6 +37,7 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
   const [adminHistoryLoading, setAdminHistoryLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [pNameVal, setPNameVal] = useState(session.name || "");
+  const [adminNameVal, setAdminNameVal] = useState(session.name || session.username || "");
   const [pCurrentPin, setPCurrentPin] = useState("");
   const [pNewPin, setPNewPin] = useState("");
   const [pNewRoomCode, setPNewRoomCode] = useState("");
@@ -315,6 +316,13 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
     if (!ok) { showToast("⚠️ Failed to save photo"); return; }
     onUpdateSession?.({ avatar: url });
     showToast("📷 Photo updated");
+  };
+
+  const handleAdminNameSave = async () => {
+    const res = await changeAdminName(session.username, adminNameVal);
+    if (!res.ok) { showToast("⚠️ " + res.error); return; }
+    onUpdateSession?.({ name: adminNameVal.trim() });
+    showToast("✅ Name updated");
   };
 
   /* ── player self-service (viewer manages own profile/room) ── */
@@ -768,9 +776,17 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
             </div>
             {photoUploading && <div style={{ textAlign: "center", fontSize: 12, color: "#9999bb", marginBottom: 12 }}>Uploading…</div>}
 
+            <div style={{ marginBottom: 18 }}>
+              <label style={S.fieldLabel}>Display name (shown in the top bar)</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input style={{ ...S.input, flex: 1 }} value={adminNameVal} onChange={e => setAdminNameVal(e.target.value)} />
+                <button style={{ ...S.btn, ...S.btnAccent, padding: "8px 14px", minHeight: 44 }} onClick={handleAdminNameSave}>Save</button>
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
               {["players", "roomcode", "history"].map(tab => (
-                <button key={tab} onClick={() => { setAdminTab(tab); if (tab === "history" && adminHistory === null) loadAdminHistory(); }} style={{
+                <button key={tab} onClick={() => { setAdminTab(tab); if (tab === "history") loadAdminHistory(); }} style={{
                   ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 13,
                   background: adminTab === tab ? "rgba(124,109,250,.25)" : "rgba(255,255,255,.04)",
                   color: adminTab === tab ? "#a48cff" : "#9999bb",
@@ -910,7 +926,7 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
 
             <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
               {["profile", "switchroom", "history"].map(tab => (
-                <button key={tab} onClick={() => { setPlayerTab(tab); setPlayerErr(""); if (tab === "history" && myHistory === null) loadMyHistory(); }} style={{
+                <button key={tab} onClick={() => { setPlayerTab(tab); setPlayerErr(""); if (tab === "history") loadMyHistory(); }} style={{
                   ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 13,
                   background: playerTab === tab ? "rgba(124,109,250,.25)" : "rgba(255,255,255,.04)",
                   color: playerTab === tab ? "#a48cff" : "#9999bb",

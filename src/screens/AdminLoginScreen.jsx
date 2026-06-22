@@ -15,7 +15,7 @@ export default function AdminLoginScreen({ onBack, onForgot, onDone }) {
     const res = await loginAdmin(username.trim(), password);
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
-    onDone({ role: "admin", username: res.admin.username, avatar: res.admin.avatar });
+    onDone({ role: "admin", username: res.admin.username, avatar: res.admin.avatar, name: res.admin.name });
   };
 
   return (

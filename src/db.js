@@ -101,6 +101,13 @@ export async function changeAdminAvatar(username, avatarUrl) {
   return !error;
 }
 
+export async function changeAdminName(username, newName) {
+  if (!newName.trim()) return { ok: false, error: "Enter a name" };
+  const { error } = await supabase.from("admins").update({ name: newName.trim() }).eq("username", norm(username));
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 export async function getAdminSecurityQuestion(username) {
   const { data } = await supabase.from("admins").select("security_question").eq("username", norm(username)).maybeSingle();
   return data?.security_question || null;

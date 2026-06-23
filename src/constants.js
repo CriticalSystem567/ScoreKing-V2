@@ -2,7 +2,7 @@
 
 // CHANGE THIS to your own secret passphrase before deploying.
 // Whoever knows this can open the super-admin panel at /?super=PASSPHRASE
-export const SUPER_ADMIN_PASSPHRASE = "Preswar0607";
+export const SUPER_ADMIN_PASSPHRASE = "changeme-super-2026";
 
 export const PLAYER_COLORS = [
   "#a48cff","#22c97a","#ff5c5c","#f5c842",
@@ -21,14 +21,23 @@ export const SECURITY_QUESTIONS = [
   "What's your favorite food?",
 ];
 
+export const ABOUT_TEXT = {
+  title: "Welcome to ScoreKing",
+  paragraphs: [
+    "ScoreKing was built for one reason: to make game nights with friends and family easier, livelier, and a little more fun \u2014 nothing more, nothing less.",
+    "Whether it's a quiet evening of 13-card rummy with family or a loud, competitive night with your closest friends, ScoreKing keeps score so nobody has to argue about it, frees everyone to focus on the game and the company, and adds a bit of light-hearted banter along the way as the scores rise and fall.",
+    "Every dealer rotation, every roast for the player sweating in the danger zone, every \"Game Over\" celebration \u2014 it's all here purely to make the night a little more memorable. This app exists for fun, laughter, and the kind of stories that get retold for years.",
+  ],
+  warning: "Please remember: ScoreKing is meant for friendly, casual play only. Never use this app \u2014 or any game it scores \u2014 for gambling, betting, or risking real money. Keep it about the fun, the friends, and the memories you'll make together.",
+};
+
 export const DEFAULT_GAME = {
-  numPlayers: 4,
+  numPlayers: 0,
   maxScore: 200,
   round: 1,
   dealerIndex: 0,          // whose turn it is to deal this round
-  players: Array.from({ length: 4 }, (_, i) => ({
-    name: `Player ${i + 1}`, total: 0, lastAdded: 0, eliminated: false,
-  })),
+  gameStarted: false,       // locks setup once true; reset clears it back to false
+  players: [],
   history: [],
   updatedAt: 0,
 };

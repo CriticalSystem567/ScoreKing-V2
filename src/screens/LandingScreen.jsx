@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { S } from "../styles.jsx";
 
-export default function LandingScreen({ onAdminLogin, onAdminSignup, onViewerJoin, onViewerLogin }) {
+export default function LandingScreen({ onAdminLogin, onAdminSignup, onViewerJoin, onViewerLogin, onAbout }) {
   const [showHelp, setShowHelp] = useState(false);
 
   return (
@@ -32,6 +32,9 @@ export default function LandingScreen({ onAdminLogin, onAdminSignup, onViewerJoi
 
           <button style={{ ...S.linkBtn, marginTop: 12 }} onClick={() => setShowHelp(v => !v)}>
             {showHelp ? "▲ Hide" : "❔ How does this work?"}
+          </button>
+          <button style={S.linkBtn} onClick={onAbout}>
+            ℹ️ About ScoreKing
           </button>
 
           {showHelp && (

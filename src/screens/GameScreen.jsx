@@ -44,9 +44,8 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
   const [playerBusy, setPlayerBusy] = useState(false);
   const [playerErr, setPlayerErr] = useState("");
   const [adminTab, setAdminTab] = useState("players"); // players | roomcode
-  const [setupPlayers, setSetupPlayers] = useState(4);
   const [setupMax, setSetupMax] = useState(200);
-  const [setupDealer, setSetupDealer] = useState(0);
+  const [setupSelected, setSetupSelected] = useState([]); // ordered array of viewer usernames, dealing order = array order
 
   const [viewers, setViewers] = useState([]);
   const [roomCode, setRoomCodeState] = useState(null);
@@ -101,8 +100,13 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
   }, [roomOwner, fetchGame]);
 
   useEffect(() => {
-    if (game) { setSetupPlayers(game.numPlayers); setSetupMax(game.maxScore); setSetupDealer(game.dealerIndex || 0); }
-  }, [game?.numPlayers, game?.maxScore]);
+    if (!game) return;
+    setSetupMax(game.maxScore);
+    if (!game.gameStarted) {
+      // pre-fill the picker with whoever's currently in the game (e.g. right after a reset)
+      setSetupSelected(game.players.map(p => p.username).filter(Boolean));
+    }
+  }, [game?.maxScore, game?.gameStarted]);
 
   /* ── viewer list + room code (admin only) ── */
   const refreshViewers = useCallback(async () => {
@@ -170,16 +174,40 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
   };
 
   /* ── setup / dealer order ── */
+  const toggleSetupPlayer = (username) => {
+    setSetupSelected(prev =>
+      prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
+    );
+  };
+  const moveSetupPlayer = (username, newPos) => {
+    setSetupSelected(prev => {
+      const without = prev.filter(u => u !== username);
+      const pos = Math.max(0, Math.min(newPos, without.length));
+      return [...without.slice(0, pos), username, ...without.slice(pos)];
+    });
+  };
+
   const applySetup = async () => {
-    const n = setupPlayers;
+    if (setupSelected.length < 2) { showToast("⚠️ Select at least 2 players"); return; }
     const old = game.players || [];
-    const players = Array.from({ length: n }, (_, i) => old[i] || { name: `Player ${i + 1}`, total: 0, lastAdded: 0, eliminated: false });
-    const dealerIndex = Math.min(setupDealer, n - 1);
+    const byUsername = {};
+    old.forEach(p => { if (p.username) byUsername[p.username] = p; });
+
+    const players = setupSelected.map(username => {
+      const viewer = viewers.find(v => v.username === username);
+      const existing = byUsername[username];
+      return existing || {
+        username, name: viewer?.name || username, avatar: viewer?.avatar || "🎮",
+        total: 0, lastAdded: 0, eliminated: false,
+      };
+    });
+
     const maxScore = (setupMax === "" || +setupMax < 10) ? 200 : +setupMax;
     setSetupMax(maxScore);
-    await pushGame({ ...game, numPlayers: n, maxScore, players, dealerIndex });
+    const dealerIndex = 0; // dealing order comes from setupSelected's array order; first selected = first to deal
+    await pushGame({ ...game, numPlayers: players.length, maxScore, players, dealerIndex, gameStarted: true });
     setRoundInputs({});
-    showToast("✓ Settings applied");
+    showToast("✓ Game started! Settings are now locked until you reset.");
   };
 
   const addRound = async () => {
@@ -242,34 +270,22 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
   };
 
   const resetGame = async () => {
-    console.log("[ScoreKing] resetGame called. history length:", game.history?.length, "game:", game);
     // Record the game that's about to be wiped, so every participating viewer keeps
-    // a permanent personal record of it — match by (case-insensitive) display name
-    // against the room's actual viewer accounts, since admin-typed "Player 1" etc.
-    // have no real account to attach history to.
+    // a permanent personal record of it. Players now always carry their real
+    // viewer username directly (set at game start via the player picker), so no
+    // name-matching guesswork is needed here.
     if (game.history && game.history.length > 0) {
       const viewerUsernameByPlayerIndex = {};
-      game.players.forEach((p, i) => {
-        const match = viewers.find(v => v.name.trim().toLowerCase() === p.name.trim().toLowerCase());
-        if (match) viewerUsernameByPlayerIndex[i] = match.username;
-      });
-      console.log("[ScoreKing] recording game, viewer map:", viewerUsernameByPlayerIndex, "viewers loaded:", viewers);
-      const result = await recordFinishedGame({ adminUsername: roomOwner, game, viewerUsernameByPlayerIndex });
-      console.log("[ScoreKing] recordFinishedGame result:", result);
-    } else {
-      console.log("[ScoreKing] SKIPPED recording — history was empty or missing");
+      game.players.forEach((p, i) => { if (p.username) viewerUsernameByPlayerIndex[i] = p.username; });
+      await recordFinishedGame({ adminUsername: roomOwner, game, viewerUsernameByPlayerIndex });
     }
 
     const players = game.players.map(p => ({ ...p, total: 0, lastAdded: 0, eliminated: false }));
-    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, winnerLine: null, jokes: {} });
+    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, winnerLine: null, jokes: {}, gameStarted: false });
+    setSetupSelected(game.players.map(p => p.username).filter(Boolean));
     setRoundInputs({});
     setShowWinner(true);
-    showToast("Game reset!");
-  };
-
-  const updatePlayerName = async (i, name) => {
-    const players = game.players.map((p, j) => j === i ? { ...p, name: name || `Player ${i + 1}` } : p);
-    await pushGame({ ...game, players });
+    showToast("Game reset — setup unlocked");
   };
 
   const handleExport = () => {
@@ -460,34 +476,81 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
       {/* SETUP (admin only) */}
       {isAdmin && (
         <div style={S.glass}>
-          <div style={S.sectionLabel}>Game Setup</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={S.fieldLabel}>Players</label>
-              <select style={S.select} value={setupPlayers} onChange={e => setSetupPlayers(+e.target.value)}>
-                {Array.from({ length: 11 }, (_, i) => i + 2).map(n => <option key={n} value={n}>{n} Players</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={S.fieldLabel}>Out at score</label>
-              <input style={S.input} type="number" value={setupMax} onFocus={e => e.target.select()}
-                onChange={e => setSetupMax(e.target.value === "" ? "" : +e.target.value)}
-                onBlur={e => { if (e.target.value === "" || +e.target.value < 10) setSetupMax(200); }}
-                min={10} inputMode="numeric" />
-            </div>
+          <div style={{ ...S.flex("row", "center"), justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={S.sectionLabel}>Game Setup</div>
+            {game.gameStarted && (
+              <span style={{ fontSize: 11, color: "#f5c842", fontWeight: 700 }}>🔒 Locked — reset to change</span>
+            )}
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={S.fieldLabel}>Who deals first?</label>
-            <select style={S.select} value={setupDealer} onChange={e => setSetupDealer(+e.target.value)}>
-              {Array.from({ length: setupPlayers }, (_, i) => (
-                <option key={i} value={i}>{game.players[i]?.name || `Player ${i + 1}`}</option>
-              ))}
-            </select>
-            <div style={{ fontSize: 11, color: "#6b6b8a", marginTop: 4 }}>
-              Dealing rotates automatically each round, in player order, looping back to the start.
+
+          {game.gameStarted ? (
+            <div style={{ fontSize: 13, color: "#9999bb" }}>
+              Players, max score, and dealing order are locked for this game.
+              Use <b>↺ Reset</b> below if you need to change them.
             </div>
-          </div>
-          <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={applySetup}>✓ Apply Settings</button>
+          ) : (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <label style={S.fieldLabel}>Select players (from people who've joined your room)</label>
+                {viewers.length === 0 && (
+                  <div style={{ fontSize: 12, color: "#6b6b8a", padding: "10px 0" }}>
+                    Nobody's joined your room yet — share your room code first (Admin Panel → 🔑 Room Code).
+                  </div>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {viewers.map(v => {
+                    const idx = setupSelected.indexOf(v.username);
+                    const selected = idx !== -1;
+                    return (
+                      <div key={v.username} style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                        borderRadius: 10, cursor: "pointer",
+                        background: selected ? "rgba(124,109,250,.15)" : "rgba(255,255,255,.04)",
+                        border: `1px solid ${selected ? "rgba(124,109,250,.4)" : "rgba(255,255,255,.07)"}`,
+                      }} onClick={() => toggleSetupPlayer(v.username)}>
+                        <div style={{
+                          width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                          background: selected ? "#7c6dfa" : "transparent", border: `1.5px solid ${selected ? "#7c6dfa" : "#6b6b8a"}`,
+                          display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700,
+                        }}>
+                          {selected ? "✓" : ""}
+                        </div>
+                        <Avatar avatar={v.avatar} size={20} />
+                        <div style={{ flex: 1, fontSize: 14, color: "#f0f0ff" }}>{v.name}</div>
+                        {selected && (
+                          <select
+                            value={idx}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => moveSetupPlayer(v.username, +e.target.value)}
+                            style={{ ...S.select, width: "auto", padding: "4px 8px", fontSize: 12 }}
+                          >
+                            {setupSelected.map((_, pos) => (
+                              <option key={pos} value={pos}>{pos + 1}{pos === 0 ? "st" : pos === 1 ? "nd" : pos === 2 ? "rd" : "th"} to deal</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: "#6b6b8a", marginTop: 8 }}>
+                  Dealing starts with whoever you set as 1st, then rotates through the rest in order, looping back, skipping anyone eliminated.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={S.fieldLabel}>Out at score</label>
+                <input style={S.input} type="number" value={setupMax} onFocus={e => e.target.select()}
+                  onChange={e => setSetupMax(e.target.value === "" ? "" : +e.target.value)}
+                  onBlur={e => { if (e.target.value === "" || +e.target.value < 10) setSetupMax(200); }}
+                  min={10} inputMode="numeric" />
+              </div>
+
+              <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={applySetup}>
+                ✓ Start Game with {setupSelected.length} Player{setupSelected.length !== 1 ? "s" : ""}
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -502,13 +565,15 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
       </div>
 
       {/* dealer banner */}
-      <div style={{ ...S.glass, padding: "10px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 20 }}>🂠</span>
-        <div>
-          <div style={{ fontSize: 11, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: ".06em" }}>Dealing this round</div>
-          <div style={{ fontWeight: 700, color: "#f5c842" }}>{game.players[dealerIdx]?.name || "—"}</div>
+      {game.gameStarted && (
+        <div style={{ ...S.glass, padding: "10px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 20 }}>🂠</span>
+          <div>
+            <div style={{ fontSize: 11, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: ".06em" }}>Dealing this round</div>
+            <div style={{ fontWeight: 700, color: "#f5c842" }}>{game.players[dealerIdx]?.name || "—"}</div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ROUND LABEL + VIEW TOGGLE */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0", padding: "0 2px" }}>
@@ -526,7 +591,12 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
       </div>
 
       {/* PLAYER CARDS */}
-      {!tableView && (
+      {!tableView && game.players.length === 0 && (
+        <div style={{ ...S.glass, textAlign: "center", padding: 30, color: "#6b6b8a", fontSize: 13 }}>
+          {isAdmin ? "Select players above and start the game to see scores here." : "The host hasn't started the game yet — check back soon."}
+        </div>
+      )}
+      {!tableView && game.players.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           {game.players.map((p, i) => {
             const elim = p.eliminated;
@@ -546,11 +616,7 @@ export default function GameScreen({ session, onLogout, onUpdateSession }) {
                   <div style={{ ...S.rankBubble, background: `${col}22`, color: rank <= 3 ? rankColors[rank] : "#9999bb" }}>
                     {rank || "—"}
                   </div>
-                  {isAdmin && !elim
-                    ? <input style={{ ...S.nameInput, color: col }} defaultValue={p.name}
-                        onBlur={e => updatePlayerName(i, e.target.value.trim())} disabled={elim} />
-                    : <div style={{ flex: 1, fontWeight: 700, fontSize: 16, color: col }}>{p.name}</div>
-                  }
+                  <div style={{ flex: 1, fontWeight: 700, fontSize: 16, color: col }}>{p.name}</div>
                   <div style={{ fontFamily: "monospace", fontSize: 28, fontWeight: 700, color: pct >= 90 && !elim ? "#ff5c5c" : pct >= 70 && !elim ? "#ff8c42" : "#f0f0ff" }}>{p.total}</div>
                 </div>
                 <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden", marginBottom: 12 }}>

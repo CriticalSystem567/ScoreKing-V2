@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { SUPER_ADMIN_PASSPHRASE } from "./constants.js";
 
+import AboutScreen from "./screens/AboutScreen.jsx";
 import LandingScreen from "./screens/LandingScreen.jsx";
 import AdminSignupScreen from "./screens/AdminSignupScreen.jsx";
 import AdminLoginScreen from "./screens/AdminLoginScreen.jsx";
@@ -19,6 +20,7 @@ function getSuperParam() {
 
 export default function App() {
   const [screen, setScreen] = useState("landing");
+  const [aboutSeen, setAboutSeen] = useState(false); // shown once per visit before landing
   // session: { role: "admin"|"viewer", username, name?, avatar?, adminUsername? (for viewers) }
   const [session, setSession] = useState(null);
 
@@ -37,7 +39,14 @@ export default function App() {
     return <GameScreen session={session} onLogout={goLanding} onUpdateSession={(patch) => setSession(prev => ({ ...prev, ...patch }))} />;
   }
 
+  // First-time visit (this browser session): show the About/intro screen before anything else.
+  if (!aboutSeen && screen === "landing") {
+    return <AboutScreen onClose={() => setAboutSeen(true)} />;
+  }
+
   switch (screen) {
+    case "about":
+      return <AboutScreen onClose={() => setScreen("landing")} showCloseAsContinue={false} />;
     case "adminSignup":
       return <AdminSignupScreen onBack={() => setScreen("landing")} onDone={(s) => setSession(s)} />;
     case "adminLogin":
@@ -55,6 +64,7 @@ export default function App() {
           onAdminSignup={() => setScreen("adminSignup")}
           onViewerJoin={() => setScreen("viewerJoin")}
           onViewerLogin={() => setScreen("viewerLogin")}
+          onAbout={() => setScreen("about")}
         />
       );
   }

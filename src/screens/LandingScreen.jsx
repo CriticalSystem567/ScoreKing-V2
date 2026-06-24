@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { S } from "../styles.jsx";
 
-export default function LandingScreen({ onAdminLogin, onAdminSignup, onViewerJoin, onViewerLogin, onAbout }) {
+export default function LandingScreen({ onLogin, onSignup, onJoinRoom, onAbout }) {
   const [showHelp, setShowHelp] = useState(false);
 
   return (
@@ -11,23 +11,17 @@ export default function LandingScreen({ onAdminLogin, onAdminSignup, onViewerJoi
         <div style={S.logoSub}>Live Card Game Scoreboard</div>
 
         <div style={{ ...S.flex("column", "stretch"), gap: 10 }}>
-          <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={onViewerLogin}>
-            🎮 I'm a Player — Log In
+          <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={onLogin}>
+            🔑 Log In
           </button>
-          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onViewerJoin}>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onJoinRoom}>
             ➕ Join a Friend's Game
           </button>
 
           <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "14px 0" }} />
 
-          <div style={{ fontSize: 11, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>
-            Hosting a game?
-          </div>
-          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onAdminLogin}>
-            👑 Admin Login
-          </button>
-          <button style={{ ...S.linkBtn, marginTop: 4 }} onClick={onAdminSignup}>
-            New host? Create an admin account →
+          <button style={{ ...S.linkBtn }} onClick={onSignup}>
+            New here? Create an account →
           </button>
 
           <button style={{ ...S.linkBtn, marginTop: 12 }} onClick={() => setShowHelp(v => !v)}>
@@ -44,12 +38,12 @@ export default function LandingScreen({ onAdminLogin, onAdminSignup, onViewerJoi
                 everyone sees the same scores update instantly on their own phone.
               </p>
               <p style={{ marginBottom: 10 }}>
-                <b style={{ color: "#a48cff" }}>Hosting a game?</b> Create a free admin account, then share your
-                room code with friends. You'll enter scores each round; everyone else just watches live.
+                One account does everything: create your own room to host a game and share your room code with
+                friends, or join someone else's room the same way. You can do both with the same login.
               </p>
               <p style={{ marginBottom: 0 }}>
-                <b style={{ color: "#22c97a" }}>Just playing?</b> Get a room code from whoever's hosting, tap
-                "Join a Friend's Game," and pick a username + PIN. Next time, just log in directly.
+                <b style={{ color: "#22c97a" }}>Already have a room code?</b> Tap "Join a Friend's Game" — if you're
+                new, you'll create an account in the same step.
               </p>
             </div>
           )}

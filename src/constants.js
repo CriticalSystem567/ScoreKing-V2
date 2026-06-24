@@ -2,7 +2,7 @@
 
 // CHANGE THIS to your own secret passphrase before deploying.
 // Whoever knows this can open the super-admin panel at /?super=PASSPHRASE
-export const SUPER_ADMIN_PASSPHRASE = "Preswar0607";
+export const SUPER_ADMIN_PASSPHRASE = "changeme-super-2026";
 
 export const PLAYER_COLORS = [
   "#a48cff","#22c97a","#ff5c5c","#f5c842",
@@ -41,13 +41,6 @@ export const DEFAULT_GAME = {
   history: [],
   updatedAt: 0,
 };
-
-export function genInviteCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars (0/O, 1/I)
-  let s = "";
-  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
-}
 
 export function isPhotoAvatar(avatar) {
   return typeof avatar === "string" && avatar.startsWith("http");

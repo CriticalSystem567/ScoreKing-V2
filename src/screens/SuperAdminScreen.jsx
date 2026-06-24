@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { S } from "../styles.jsx";
-import { listAllAdmins, deleteAdmin } from "../db.js";
+import { listAllPlayers, deletePlayerAccount } from "../db.js";
 
 export default function SuperAdminScreen({ onExit }) {
-  const [admins, setAdmins] = useState([]);
+  const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [confirmDlg, setConfirmDlg] = useState(null);
@@ -12,19 +12,21 @@ export default function SuperAdminScreen({ onExit }) {
   const askConfirm = (msg, onYes) => setConfirmDlg({ msg, onYes });
 
   const refresh = async () => {
-    const a = await listAllAdmins();
-    setAdmins(a); setLoading(false);
+    const a = await listAllPlayers();
+    setPlayers(a); setLoading(false);
   };
 
   useEffect(() => { refresh(); }, []);
 
-  const handleDeleteAdmin = (username) => {
-    askConfirm(`Delete admin "${username}" and their entire room, players, and history? This can't be undone.`, async () => {
-      const ok = await deleteAdmin(username);
+  const handleDelete = (username) => {
+    askConfirm(`Delete account "${username}"? If they host a room, it and its history are removed too. This can't be undone.`, async () => {
+      const ok = await deletePlayerAccount(username);
       if (ok) { showToast(`Deleted ${username}`); refresh(); }
       else showToast("⚠️ Failed to delete");
     });
   };
+
+  const hostCount = players.filter(p => p.room_code).length;
 
   return (
     <div style={S.appWrap}>
@@ -34,24 +36,27 @@ export default function SuperAdminScreen({ onExit }) {
       </div>
 
       <div style={S.glass}>
-        <div style={S.sectionLabel}>All Admin Rooms ({admins.length})</div>
+        <div style={S.sectionLabel}>All Accounts ({players.length}) · Hosting a room: {hostCount}</div>
         {loading && <div style={{ color: "#6b6b8a", fontSize: 13, textAlign: "center" }}>Loading…</div>}
-        {!loading && admins.map(a => (
-          <div key={a.username} style={{
+        {!loading && players.map(p => (
+          <div key={p.username} style={{
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
             padding: "10px 12px", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)",
             borderRadius: 10, marginBottom: 8,
           }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#f0f0ff" }}>{a.username}</div>
-              <div style={{ fontSize: 11, color: "#6b6b8a" }}>Joined {new Date(a.created_at).toLocaleDateString()}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#f0f0ff" }}>
+                {p.name || p.username} <span style={{ color: "#6b6b8a", fontWeight: 400 }}>@{p.username}</span>
+                {p.room_code && <span style={{ fontSize: 10, background: "rgba(124,109,250,.2)", color: "#a48cff", padding: "2px 7px", borderRadius: 10, marginLeft: 6 }}>HOSTS A ROOM</span>}
+              </div>
+              <div style={{ fontSize: 11, color: "#6b6b8a" }}>Joined {new Date(p.created_at).toLocaleDateString()}</div>
             </div>
-            <button style={{ ...S.btn, ...S.btnRed, padding: "5px 10px", minHeight: 30, fontSize: 12 }} onClick={() => handleDeleteAdmin(a.username)}>
+            <button style={{ ...S.btn, ...S.btnRed, padding: "5px 10px", minHeight: 30, fontSize: 12 }} onClick={() => handleDelete(p.username)}>
               Delete
             </button>
           </div>
         ))}
-        {!loading && admins.length === 0 && <div style={{ color: "#6b6b8a", fontSize: 13, textAlign: "center" }}>No admins yet</div>}
+        {!loading && players.length === 0 && <div style={{ color: "#6b6b8a", fontSize: 13, textAlign: "center" }}>No accounts yet</div>}
       </div>
 
       {toast && <div style={S.toast}>{toast}</div>}

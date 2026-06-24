@@ -1,73 +1,51 @@
-# ScoreKing v2 — Multi-Tenant Rooms
+# ScoreKing — Unified Accounts
 
-This is a major rebuild of ScoreKing. Instead of one shared game for everyone,
-each admin now runs their own completely separate, private room.
+This is a major architecture change: there is no longer a separate "admin"
+and "viewer" account type. Everyone has ONE account that can both host their
+own room and join other people's rooms, using the same username and password.
 
-## What's new vs v1
+## What changed
 
-- **Super-admin panel** (you) — generate/revoke invite codes, view/delete any admin's room
-- **Admin signup** — requires an invite code; sets username + password + a security question
-- **Admin login** — username + password (forgot-password via security question, no email needed)
-- **Viewer self-registration** — players pick which admin's room to join, choose a username + PIN,
-  then wait for that admin to approve them
-- **Full data isolation** — every admin's game, scores, and player list are separate; no two rooms
-  ever see each other's data
-- **Dealer rotation** — before the game, the admin picks who deals first; dealing then auto-rotates
-  through players in order every round, looping back to the start, skipping eliminated players
-- **Fixed score-input bug** — number fields now select-all on focus, so typing immediately replaces
-  the old value instead of inserting alongside it
+- **One signup/login** for everyone (username, password, security question).
+- **Hosting** is automatic: the first time you log in, you get your own room
+  with a shareable room code, found under your profile → "🏠 Room" tab.
+- **Joining** someone else's room (via their room code) makes you a player
+  there. If you also host your own room, that's unaffected — you can switch
+  between "My Room" and any room you've joined using a button that appears
+  whenever both apply.
+- **"I'm playing too"** — when starting your own game, toggle this if you
+  want to be one of the scored players, not just running the scoreboard.
+- **No more typed player names** — players are selected from the list of
+  people who've actually joined your room via room code. Dealing order is
+  set per-player with a small dropdown.
+- **Setup locks once a game starts** — number of players, max score, and
+  dealing order can't change until you Reset.
+- **Personal history dashboard** — total games played/won/lost and win rate,
+  plus a full per-game list, available from your profile's "📜 History" tab,
+  regardless of which room you're currently viewing.
+- **Super-admin panel** now lists every account, flags which ones host a
+  room, and can delete any account (which also removes their room if they
+  have one).
 
-## One-time setup (already done if you followed along)
+## IMPORTANT: this is a fresh start, not a data migration
 
-1. Ran `schema.sql` in Supabase SQL Editor — creates `invite_codes`, `admins`, `rooms`, `viewers`
-2. `src/supabaseClient.js` is wired to your existing Supabase project
+Existing admin/viewer accounts from the previous version are **not**
+carried over. Everyone — including you — creates a new account under this
+system. The old `admins`, `viewers`, and `invite_codes` tables are left in
+the database, untouched and unused; you can drop them later if you like.
 
-## IMPORTANT: set your super-admin passphrase before deploying
+## Setup
 
-Open `src/constants.js` and change this line to your own secret value:
+1. Run `migration_unified_accounts.sql` in Supabase SQL Editor. **Read it
+   first** — it deletes any existing rows in the `rooms` table as part of
+   re-pointing its foreign key, since those rooms belonged to the old admin
+   accounts that no longer exist under this system.
+2. Set your own `SUPER_ADMIN_PASSPHRASE` in `src/constants.js` if you
+   haven't already.
+3. Deploy as before: GitHub → Vercel auto-redeploy.
 
-```js
-export const SUPER_ADMIN_PASSPHRASE = "changeme-super-2026";
-```
+## Everything else
 
-To access the super-admin panel after deploying, visit:
-```
-https://your-app-url.vercel.app/?super=YOUR_PASSPHRASE
-```
-Keep this passphrase private — anyone who knows it can generate invite codes and manage all rooms.
-
-## How people use the app
-
-- **You (super-admin)**: generate an invite code, send it to a new host (e.g. Yogi)
-- **Yogi (admin)**: visits the app, clicks "Create an admin account," enters the invite code,
-  picks a username/password/security question — gets their own room
-- **Yogi's friends (viewers)**: visit the app, click "Join a Friend's Game," enter Yogi's username,
-  their own display name, a username, and a 4-digit PIN — request goes to Yogi for approval
-- **Yogi approves them** in his Admin Panel → "Join Requests" tab
-- **Approved friends** log in anytime via "I'm a Player — Log In" with their username + PIN,
-  and land directly in Yogi's live game
-
-## Deploying
-
-Same process as before:
-1. Upload this project's files to your GitHub repo (replacing the old ones), OR create a
-   brand-new repo if you want this running as a separate app/URL alongside the old one
-2. Connect/redeploy via Vercel
-3. Share the resulting URL
-
-### Running this as a second, separate deployment (testing alongside v1)
-
-Since you wanted a separate test version: create a **new GitHub repo** (e.g. `scoreking-v2`),
-upload these files there, then **Add New → Project** in Vercel pointing at that new repo.
-You'll get a second independent URL, while your original v1 app keeps running untouched at
-its existing URL. Both can share the same Supabase project (the new tables don't conflict
-with the old `games`/`profiles` tables) or you can point this at a brand-new Supabase project
-for full separation — your choice.
-
-## Notes on security
-
-- Passwords and PINs are stored in plain text in the database (no hashing). This is a
-  deliberate simplification since there's no backend server here to hash them securely —
-  acceptable for a casual game app, but don't reuse important passwords here.
-- All tables are publicly readable/writable via your Supabase public API key, same model
-  as v1. Fine for this use case; not suitable for sensitive data.
+Room codes, dealer rotation, round history, zone jokes, winner lines, room
+locking, profile photos, and the About/intro screen all carry over unchanged
+from the previous version — only the account system underneath them changed.

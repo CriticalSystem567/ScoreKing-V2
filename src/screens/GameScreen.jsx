@@ -908,6 +908,32 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                         Share this with friends — they'll enter it to join your room instantly, no approval needed.
                       </div>
                     </div>
+
+                    <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "18px 0" }} />
+                  </>
+                )}
+
+                <div style={S.sectionLabel}>➕ Join a Room</div>
+                <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 10 }}>
+                  Enter a friend's room code to join their game as a player.
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <input style={{ ...S.input, flex: 1, fontFamily: "monospace", fontWeight: 700 }} value={joinCodeVal}
+                    onChange={e => setJoinCodeVal(e.target.value.toUpperCase())} placeholder="Room code" maxLength={10} />
+                  <button style={{ ...S.btn, ...S.btnAccent, padding: "8px 14px", minHeight: 44 }} onClick={handleJoinAnotherRoom} disabled={profileBusy}>Join</button>
+                </div>
+                {profileErr && <div style={{ color: "#ff5c5c", fontSize: 13, marginBottom: 8 }}>{profileErr}</div>}
+
+                {!isOwnView && (
+                  <button style={{ ...S.btn, ...S.btnRed, width: "100%", marginTop: 10 }} onClick={handleLeaveJoinedRoom}>
+                    🚪 Leave {roomOwner}'s Room
+                  </button>
+                )}
+
+                {isOwnView && (
+                  <>
+                    <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "18px 0" }} />
+
                     <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleRegenerateCode} disabled={regenBusy}>
                       {regenBusy ? "Generating…" : "🔄 Generate New Code"}
                     </button>
@@ -931,26 +957,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                     <button style={{ ...S.btn, ...(roomLocked ? S.btnGreen : S.btnRed), width: "100%" }} onClick={handleToggleLock} disabled={lockBusy}>
                       {lockBusy ? "Updating…" : roomLocked ? "🔓 Reopen Room" : "🔒 Close Room"}
                     </button>
-
-                    <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "20px 0" }} />
                   </>
-                )}
-
-                <div style={S.sectionLabel}>➕ Join a Room</div>
-                <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 10 }}>
-                  Enter a friend's room code to join their game as a player.
-                </div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  <input style={{ ...S.input, flex: 1, fontFamily: "monospace", fontWeight: 700 }} value={joinCodeVal}
-                    onChange={e => setJoinCodeVal(e.target.value.toUpperCase())} placeholder="Room code" maxLength={10} />
-                  <button style={{ ...S.btn, ...S.btnAccent, padding: "8px 14px", minHeight: 44 }} onClick={handleJoinAnotherRoom} disabled={profileBusy}>Join</button>
-                </div>
-                {profileErr && <div style={{ color: "#ff5c5c", fontSize: 13, marginBottom: 8 }}>{profileErr}</div>}
-
-                {!isOwnView && (
-                  <button style={{ ...S.btn, ...S.btnRed, width: "100%", marginTop: 10 }} onClick={handleLeaveJoinedRoom}>
-                    🚪 Leave {roomOwner}'s Room
-                  </button>
                 )}
               </div>
             )}

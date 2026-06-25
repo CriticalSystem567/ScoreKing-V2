@@ -2,7 +2,7 @@
 
 // CHANGE THIS to your own secret passphrase before deploying.
 // Whoever knows this can open the super-admin panel at /?super=PASSPHRASE
-export const SUPER_ADMIN_PASSPHRASE = "changeme-super-2026";
+export const SUPER_ADMIN_PASSPHRASE = "Preswar0607";
 
 export const PLAYER_COLORS = [
   "#a48cff","#22c97a","#ff5c5c","#f5c842",

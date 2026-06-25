@@ -18,11 +18,7 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
 
     const p = res.player;
     const session = { username: p.username, name: p.name, avatar: p.avatar, roomCode: p.room_code, joinedHost: p.current_room };
-    // Land wherever makes sense: if they're currently sitting in someone's room
-    // (including possibly their own, if they toggled "I'm playing too" there),
-    // show that room; otherwise default to their own room if they host one.
-    const mode = p.current_room && p.current_room !== p.username ? "joined" : "own";
-    onDone(session, mode);
+    onDone(session);
   };
 
   return (

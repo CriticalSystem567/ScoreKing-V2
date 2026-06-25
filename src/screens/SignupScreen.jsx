@@ -27,7 +27,7 @@ export default function SignupScreen({ onBack, onDone }) {
     });
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
-    onDone({ username: res.username, name: name.trim(), avatar: null, roomCode: null }, "own");
+    onDone({ username: res.username, name: name.trim(), avatar: null, roomCode: null });
   };
 
   return (

@@ -897,23 +897,27 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
 
             {profileTab === "room" && (
               <div>
-                {isOwnView && (
-                  <>
-                    <div style={S.sectionLabel}>🏠 Your Room</div>
-                    <div style={{ textAlign: "center", padding: "24px 16px", background: "rgba(124,109,250,.08)", border: "1px solid rgba(124,109,250,.25)", borderRadius: 14, marginBottom: 14 }}>
-                      <div style={{ fontFamily: "monospace", fontSize: 32, fontWeight: 800, letterSpacing: "0.1em", color: "#f5c842" }}>
-                        {roomCode || myRoomCode || "…"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#9999bb", marginTop: 8 }}>
-                        Share this with friends — they'll enter it to join your room instantly, no approval needed.
-                      </div>
-                    </div>
+                <div style={S.sectionLabel}>🏠 Current Room</div>
+                <div style={{ textAlign: "center", padding: "24px 16px", background: "rgba(124,109,250,.08)", border: "1px solid rgba(124,109,250,.25)", borderRadius: 14, marginBottom: 10 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 32, fontWeight: 800, letterSpacing: "0.1em", color: "#f5c842" }}>
+                    {isOwnView ? (roomCode || myRoomCode || "…") : "— hosted by " + roomOwner + " —"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#9999bb", marginTop: 8 }}>
+                    {isOwnView
+                      ? "This is your room — share the code above with friends so they can join."
+                      : `You're currently in ${roomOwner}'s room as a player.`}
+                  </div>
+                </div>
 
-                    <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "18px 0" }} />
-                  </>
+                {!isOwnView && (
+                  <button style={{ ...S.btn, ...S.btnRed, width: "100%", marginBottom: 18 }} onClick={handleLeaveJoinedRoom}>
+                    🚪 Exit This Room
+                  </button>
                 )}
 
-                <div style={S.sectionLabel}>➕ Join a Room</div>
+                <div style={{ height: 1, background: "rgba(255,255,255,.08)", marginBottom: 18 }} />
+
+                <div style={S.sectionLabel}>➕ Join a Different Room</div>
                 <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 10 }}>
                   Enter a friend's room code to join their game as a player.
                 </div>
@@ -923,12 +927,6 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                   <button style={{ ...S.btn, ...S.btnAccent, padding: "8px 14px", minHeight: 44 }} onClick={handleJoinAnotherRoom} disabled={profileBusy}>Join</button>
                 </div>
                 {profileErr && <div style={{ color: "#ff5c5c", fontSize: 13, marginBottom: 8 }}>{profileErr}</div>}
-
-                {!isOwnView && (
-                  <button style={{ ...S.btn, ...S.btnRed, width: "100%", marginTop: 10 }} onClick={handleLeaveJoinedRoom}>
-                    🚪 Leave {roomOwner}'s Room
-                  </button>
-                )}
 
                 {isOwnView && (
                   <>

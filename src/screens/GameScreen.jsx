@@ -40,7 +40,6 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
   const toastTimer = useRef(null);
 
   const [participants, setParticipants] = useState([]); // people sitting in roomOwner's room right now
-  const [includeSelfAsPlayer, setIncludeSelfAsPlayer] = useState(false);
   const [setupSelected, setSetupSelected] = useState([]);
   const [setupMax, setSetupMax] = useState(200);
   const [roomCode, setRoomCodeState] = useState(null);
@@ -192,13 +191,19 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     return true;
   });
 
+  // Deduplicated view of setupSelected — defends against any duplicate that
+  // might sneak in (e.g. toggling "I'm playing too" rapidly), so the displayed
+  // count and the actual game-start logic can never diverge from reality.
+  const setupSelectedUnique = [...new Set(setupSelected)];
+  const includeSelfAsPlayer = setupSelectedUnique.includes(session.username);
+
   const applySetup = async () => {
-    if (setupSelected.length < 2) { showToast("⚠️ Select at least 2 players"); return; }
+    if (setupSelectedUnique.length < 2) { showToast("⚠️ Select at least 2 players"); return; }
     const old = game.players || [];
     const byUsername = {};
     old.forEach(p => { if (p.username) byUsername[p.username] = p; });
 
-    const players = setupSelected.map(username => {
+    const players = setupSelectedUnique.map(username => {
       const person = selectablePeople.find(v => v.username === username);
       const existing = byUsername[username];
       return existing || {
@@ -499,13 +504,15 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
             <>
               <div style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, marginBottom: 14,
-                background: includeSelfAsPlayer ? "rgba(124,109,250,.15)" : theme.surface,
-                border: `1px solid ${includeSelfAsPlayer ? "rgba(124,109,250,.4)" : theme.surfaceBorder}`,
+                background: includeSelfAsPlayer ? theme.accentBg : theme.surface,
+                border: `1px solid ${includeSelfAsPlayer ? theme.accentBorder : theme.surfaceBorder}`,
                 cursor: "pointer",
               }} onClick={() => {
-                setIncludeSelfAsPlayer(v => !v);
-                if (!includeSelfAsPlayer) setSetupSelected(prev => [session.username, ...prev]);
-                else setSetupSelected(prev => prev.filter(u => u !== session.username));
+                if (includeSelfAsPlayer) {
+                  setSetupSelected(prev => prev.filter(u => u !== session.username));
+                } else {
+                  setSetupSelected(prev => prev.includes(session.username) ? prev : [session.username, ...prev]);
+                }
               }}>
                 <div style={{
                   width: 22, height: 22, borderRadius: 6, flexShrink: 0,
@@ -516,7 +523,12 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={S.fieldLabel}>Select players (from people who've joined your room)</label>
+                <div style={{ ...S.flex("row", "center"), justifyContent: "space-between", marginBottom: 6 }}>
+                  <label style={S.fieldLabel}>Select players (from people who've joined your room)</label>
+                  {setupSelectedUnique.length > 0 && (
+                    <button style={{ ...S.linkBtn, fontSize: 11, padding: 0 }} onClick={() => setSetupSelected([])}>Clear all</button>
+                  )}
+                </div>
                 {participants.length === 0 && !includeSelfAsPlayer && (
                   <div style={{ fontSize: 12, color: theme.textFaint, padding: "10px 0" }}>
                     Nobody's joined your room yet — share your room code first (tap your name above → 🏠 Room).
@@ -524,15 +536,15 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                 )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {selectablePeople.map(v => {
-                    const idx = setupSelected.indexOf(v.username);
+                    const idx = setupSelectedUnique.indexOf(v.username);
                     const selected = idx !== -1;
                     const isSelf = v.username === session.username;
                     return (
                       <div key={v.username} style={{
                         display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                         borderRadius: 10, cursor: "pointer",
-                        background: selected ? "rgba(124,109,250,.15)" : theme.surface,
-                        border: `1px solid ${selected ? "rgba(124,109,250,.4)" : theme.surfaceBorder}`,
+                        background: selected ? theme.accentBg : theme.surface,
+                        border: `1px solid ${selected ? theme.accentBorder : theme.surfaceBorder}`,
                       }} onClick={() => toggleSetupPlayer(v.username)}>
                         <div style={{
                           width: 22, height: 22, borderRadius: 6, flexShrink: 0,
@@ -544,7 +556,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                         {selected && (
                           <select value={idx} onClick={e => e.stopPropagation()} onChange={e => moveSetupPlayer(v.username, +e.target.value)}
                             style={{ ...S.select, width: "auto", padding: "4px 8px", fontSize: 12 }}>
-                            {setupSelected.map((_, pos) => (
+                            {setupSelectedUnique.map((_, pos) => (
                               <option key={pos} value={pos}>{pos + 1}{pos === 0 ? "st" : pos === 1 ? "nd" : pos === 2 ? "rd" : "th"} to deal</option>
                             ))}
                           </select>
@@ -567,7 +579,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
               </div>
 
               <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={applySetup}>
-                ✓ Start Game with {setupSelected.length} Player{setupSelected.length !== 1 ? "s" : ""}
+                ✓ Start Game with {setupSelectedUnique.length} Player{setupSelectedUnique.length !== 1 ? "s" : ""}
               </button>
             </>
           )}

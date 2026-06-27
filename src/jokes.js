@@ -31,6 +31,18 @@ export const WARN_JOKES = [
   "Your run is more gap than sequence right now.",
   "One step from danger, two steps from denial.",
   "Even your joker is side-eyeing this hand.",
+  "You're one careless discard from a bad night.",
+  "This hand needs therapy, not another draw.",
+  "The math isn't mathing for you right now.",
+  "You picked up hope, then discarded it immediately.",
+  "Your sequence has more holes than a strainer.",
+  "Mild panic is a completely reasonable response here.",
+  "You're not in danger yet, but danger can see you.",
+  "Every round, your face tells the whole story.",
+  "The table's starting to notice your hand shaking.",
+  "Your cards are giving mixed signals, mostly bad ones.",
+  "Confidence: high. Sequence: nowhere to be found.",
+  "You're improvising, and it's not going great.",
 ];
 
 export const DANGER_JOKES = [
@@ -64,6 +76,16 @@ export const DANGER_JOKES = [
   "You're not just behind, you're in a different time zone.",
   "This hand is held together by hope alone.",
   "Your odds are now measured in 'unlikely' and 'lol no'.",
+  "You're basically renting space in the danger zone now.",
+  "One more round like that and they'll retire your jersey.",
+  "Your scorecard is starting to look like a phone number.",
+  "The deck has officially given up on you.",
+  "This is the kind of score that becomes a group chat joke.",
+  "You're not playing rummy anymore, you're surviving it.",
+  "At this score, declaring would be a war crime.",
+  "Your hand is a museum exhibit titled 'What Not To Do'.",
+  "Somewhere your ancestors are watching this in disappointment.",
+  "You've made 'almost out' your entire personality tonight.",
 ];
 
 /* ─── Celebration lines for the round's winner ─── */
@@ -78,6 +100,21 @@ export const WINNER_LINES = [
   "That's how it's done — textbook, ruthless, brilliant.",
   "The cards listened to you tonight. Take the crown.",
   "While others sweated, you were already three moves ahead.",
+];
+
+/* ─── Celebration lines for someone who wins a single ROUND (scores 0) ───
+   Distinct from WINNER_LINES, which celebrate winning the entire game. */
+export const ROUND_WIN_LINES = [
+  "Clean declare — zero stress, zero score.",
+  "In and out before anyone saw it coming.",
+  "That's a textbook hand right there.",
+  "Declared like they'd been holding it all along.",
+  "Zero on the board, already shuffling for the next one.",
+  "That's how you make a round look easy.",
+  "Quietly brilliant, loudly zero.",
+  "Some people fold under pressure — this one declares.",
+  "Smooth round. Smoothest score on the board.",
+  "Nothing to add, because they added nothing.",
 ];
 
 /* Caches the chosen joke per exact key (player+round+zone), so repeated renders
@@ -106,5 +143,13 @@ export function getWinnerLine(key) {
   if (winnerLineCache[key]) return winnerLineCache[key];
   const pick = WINNER_LINES[Math.floor(Math.random() * WINNER_LINES.length)];
   winnerLineCache[key] = pick;
+  return pick;
+}
+
+const roundWinLineCache = {}; // key (player+round) -> chosen line, stable for that round
+export function getRoundWinLine(key) {
+  if (roundWinLineCache[key]) return roundWinLineCache[key];
+  const pick = ROUND_WIN_LINES[Math.floor(Math.random() * ROUND_WIN_LINES.length)];
+  roundWinLineCache[key] = pick;
   return pick;
 }

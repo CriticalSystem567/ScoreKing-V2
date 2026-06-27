@@ -1,9 +1,26 @@
-import { S } from "../styles.jsx";
+import { getStyles } from "../styles.jsx";
+import { useTheme } from "../ThemeContext.jsx";
+import { APP_VERSION } from "../constants.js";
 
 export default function LandingScreen({ onLogin, onSignup, onAbout, onHowItWorks, onQuickJoin }) {
+  const { theme, mode, toggleMode } = useTheme();
+  const S = getStyles(theme);
+
   return (
     <div style={S.screen}>
-      <div style={S.loginBox}>
+      <div style={{ ...S.loginBox, position: "relative" }}>
+        <button
+          onClick={toggleMode}
+          title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          style={{
+            position: "absolute", top: 14, right: 14, width: 36, height: 36, borderRadius: "50%",
+            border: `1px solid ${theme.surfaceBorder}`, background: theme.surfaceStrong, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+          }}
+        >
+          {mode === "dark" ? "☀️" : "🌙"}
+        </button>
+
         <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Live Card Game Scoreboard</div>
 
@@ -24,6 +41,8 @@ export default function LandingScreen({ onLogin, onSignup, onAbout, onHowItWorks
             <button style={S.linkBtn} onClick={onAbout}>ℹ️ About</button>
           </div>
         </div>
+
+        <div style={{ marginTop: 22, fontSize: 11, color: theme.textFaint }}>{APP_VERSION}</div>
       </div>
     </div>
   );

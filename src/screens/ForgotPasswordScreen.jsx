@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { S } from "../styles.jsx";
+import { getStyles } from "../styles.jsx";
+import { useTheme } from "../ThemeContext.jsx";
 import { getSecurityQuestion, resetPassword } from "../db.js";
 
 export default function ForgotPasswordScreen({ onBack }) {
+  const { theme } = useTheme();
+  const S = getStyles(theme);
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState("");
   const [question, setQuestion] = useState("");
@@ -48,7 +51,7 @@ export default function ForgotPasswordScreen({ onBack }) {
                 <label style={S.fieldLabel}>Your username</label>
                 <input style={S.input} value={username} onChange={e => setUsername(e.target.value)} autoCapitalize="none" />
               </div>
-              {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+              {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
               <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={findAccount} disabled={busy}>
                 {busy ? "Checking…" : "Continue"}
               </button>
@@ -57,7 +60,7 @@ export default function ForgotPasswordScreen({ onBack }) {
 
           {step === 2 && (
             <>
-              <div style={{ fontSize: 13, color: "#9999bb" }}>{question}</div>
+              <div style={{ fontSize: 13, color: theme.textDim }}>{question}</div>
               <div>
                 <label style={S.fieldLabel}>Your answer</label>
                 <input style={S.input} value={answer} onChange={e => setAnswer(e.target.value)} />
@@ -70,7 +73,7 @@ export default function ForgotPasswordScreen({ onBack }) {
                 <label style={S.fieldLabel}>Confirm new password</label>
                 <input style={S.input} type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
               </div>
-              {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+              {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
               <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={submitReset} disabled={busy}>
                 {busy ? "Updating…" : "Reset Password"}
               </button>
@@ -79,7 +82,7 @@ export default function ForgotPasswordScreen({ onBack }) {
 
           {step === 3 && (
             <>
-              <div style={{ color: "#22c97a", fontSize: 15, fontWeight: 600, padding: "10px 0" }}>
+              <div style={{ color: theme.green, fontSize: 15, fontWeight: 600, padding: "10px 0" }}>
                 ✅ Password updated! You can log in now.
               </div>
               <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={onBack}>Go to Login</button>

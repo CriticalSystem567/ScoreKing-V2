@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { S } from "../styles.jsx";
+import { getStyles } from "../styles.jsx";
+import { useTheme } from "../ThemeContext.jsx";
 import { SECURITY_QUESTIONS } from "../constants.js";
 import { signUp } from "../db.js";
 
 export default function SignupScreen({ onBack, onDone }) {
+  const { theme } = useTheme();
+  const S = getStyles(theme);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +38,7 @@ export default function SignupScreen({ onBack, onDone }) {
       <div style={S.loginBox}>
         <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Create your account</div>
-        <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: theme.textFaint, marginBottom: 16, lineHeight: 1.5 }}>
           One account does it all — host your own room and join friends' rooms, anytime.
         </div>
 
@@ -67,7 +70,7 @@ export default function SignupScreen({ onBack, onDone }) {
             <input style={S.input} value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Remember this exactly" />
           </div>
 
-          {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+          {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
 
           <button style={{ ...S.btn, ...S.btnAccent, width: "100%", marginTop: 6 }} onClick={submit} disabled={busy}>
             {busy ? "Creating account…" : "Create Account"}

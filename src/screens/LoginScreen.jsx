@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { S } from "../styles.jsx";
+import { getStyles } from "../styles.jsx";
+import { useTheme } from "../ThemeContext.jsx";
 import { login } from "../db.js";
 
 export default function LoginScreen({ onBack, onForgot, onDone }) {
+  const { theme } = useTheme();
+  const S = getStyles(theme);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -26,7 +29,7 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
       <div style={S.loginBox}>
         <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Log In</div>
-        <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: theme.textFaint, marginBottom: 16, lineHeight: 1.5 }}>
           One login for everything — host your own room, join a friend's, or both.
         </div>
 
@@ -41,7 +44,7 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
             <input style={S.input} type="password" value={password} onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === "Enter" && submit()} />
           </div>
-          {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+          {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
           <button style={{ ...S.btn, ...S.btnAccent, width: "100%", marginTop: 6 }} onClick={submit} disabled={busy}>
             {busy ? "Logging in…" : "Log In"}
           </button>

@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { S } from "../styles.jsx";
+import { getStyles } from "../styles.jsx";
+import { useTheme } from "../ThemeContext.jsx";
 import { joinRoomByCode } from "../db.js";
 
 export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined, onUpdateSession, onLogout }) {
+  const { theme } = useTheme();
+  const S = getStyles(theme);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [roomCode, setRoomCode] = useState("");
   const [err, setErr] = useState("");
@@ -43,7 +46,7 @@ export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined,
                 value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10}
                 onKeyDown={e => e.key === "Enter" && submitJoin()} />
             </div>
-            {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+            {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
             <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={submitJoin} disabled={busy}>
               {busy ? "Joining…" : "Join Room"}
             </button>

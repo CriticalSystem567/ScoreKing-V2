@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { S } from "../styles.jsx";
+import { getStyles } from "../styles.jsx";
+import { useTheme } from "../ThemeContext.jsx";
 import { SECURITY_QUESTIONS } from "../constants.js";
 import { joinRoomByCode, login, signUp } from "../db.js";
 
 export default function JoinRoomScreen({ onBack, onDone }) {
+  const { theme } = useTheme();
+  const S = getStyles(theme);
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState(null); // null | "login" | "signup"
 
@@ -67,7 +70,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
         <div style={S.loginBox}>
           <div style={S.logo}>ScoreKing ♠️</div>
           <div style={S.logoSub}>Join a Friend's Game</div>
-          <div style={{ fontSize: 12, color: "#6b6b8a", marginBottom: 16, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: theme.textFaint, marginBottom: 16, lineHeight: 1.5 }}>
             Ask your host for their room code.
           </div>
 
@@ -77,7 +80,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
               <input style={{ ...S.input, fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
                 value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10} />
             </div>
-            {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+            {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
             <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }}
               onClick={() => { if (!roomCode.trim()) { setErr("Enter the room code first"); return; } setErr(""); setMode("login"); }}>
               I already have an account
@@ -108,7 +111,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
               <label style={S.fieldLabel}>Password</label>
               <input style={S.input} type="password" value={password} onChange={e => setPassword(e.target.value)} />
             </div>
-            {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+            {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
             <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={submitLogin} disabled={busy}>
               {busy ? "Joining…" : "Log In & Join"}
             </button>
@@ -151,7 +154,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
             <label style={S.fieldLabel}>Your answer</label>
             <input style={S.input} value={answer} onChange={e => setAnswer(e.target.value)} />
           </div>
-          {err && <div style={{ color: "#ff5c5c", fontSize: 13 }}>{err}</div>}
+          {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
           <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={submitSignup} disabled={busy}>
             {busy ? "Joining…" : "Create Account & Join"}
           </button>

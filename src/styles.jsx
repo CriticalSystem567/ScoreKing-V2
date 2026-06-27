@@ -5,7 +5,7 @@ export function getStyles(t) {
   return {
     screen:      { position:"fixed",inset:0,background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:100,overflowY:"auto" },
     loginBox:    { width:"100%",maxWidth:380,background:t.surface,backdropFilter:"blur(16px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:24,padding:"32px 28px",textAlign:"center",margin:"auto",boxShadow:t.shadow },
-    logo:        { fontFamily:"monospace",fontSize:28,fontWeight:700,background:`linear-gradient(135deg,${t.accentLight},${t.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text" },
+    logo:        { fontFamily:"monospace",fontSize:28,fontWeight:700,color:t.accentLight,background:`linear-gradient(135deg,${t.accentLight},${t.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text" },
     logoSub:     { fontSize:11,letterSpacing:".15em",textTransform:"uppercase",color:t.textFaint,marginTop:2,marginBottom:24 },
     profileGrid: { display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8 },
     profileBtn:  { background:t.surfaceStrong,border:`1.5px solid ${t.surfaceBorder}`,borderRadius:14,padding:"16px 10px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:8,transition:"all .18s" },

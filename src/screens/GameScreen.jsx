@@ -178,10 +178,19 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
 
   // candidates available to select as players: everyone currently in the room,
   // plus the host themselves if they've ticked "I'm playing too"
-  const selectablePeople = [
+  const selectablePeopleRaw = [
     ...(includeSelfAsPlayer ? [{ username: session.username, name: session.name || session.username, avatar: session.avatar || "👑" }] : []),
     ...participants,
   ];
+  // Dedupe by username — the host can otherwise show up twice if they've also
+  // somehow ended up as a participant in their own room (e.g. via "Join a
+  // Different Room" pointed back at themselves).
+  const seenUsernames = new Set();
+  const selectablePeople = selectablePeopleRaw.filter(v => {
+    if (seenUsernames.has(v.username)) return false;
+    seenUsernames.add(v.username);
+    return true;
+  });
 
   const applySetup = async () => {
     if (setupSelected.length < 2) { showToast("⚠️ Select at least 2 players"); return; }
@@ -453,18 +462,6 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
           </div>
         </div>
       </div>
-
-      {/* room switcher, if relevant */}
-      {viewMode === "joined" && (
-        <button style={{ ...S.btn, ...S.btnGhost, width: "100%", marginBottom: 10 }} onClick={() => onSwitchView?.("own")}>
-          ↩ Switch to My Room
-        </button>
-      )}
-      {viewMode === "own" && session.joinedHost && (
-        <button style={{ ...S.btn, ...S.btnGhost, width: "100%", marginBottom: 10 }} onClick={() => onSwitchView?.("joined")}>
-          🎮 Switch to {session.joinedHost}'s Room
-        </button>
-      )}
 
       <div style={{ textAlign: "center", padding: "16px 0 16px" }}>
         <div style={S.logo}>ScoreKing ♠️</div>
@@ -803,9 +800,20 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
             <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: theme.accentLight, marginBottom: 4 }}>Game Over!</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: theme.gold, marginBottom: 10 }}>{game.winner}</div>
+
+            {game.players.length > 1 && (
+              <div style={{
+                fontSize: 13, fontWeight: 800, letterSpacing: "0.04em", color: theme.bg,
+                background: `linear-gradient(135deg,${theme.gold},${theme.orange})`,
+                padding: "8px 16px", borderRadius: 30, marginBottom: 14, display: "inline-block",
+              }}>
+                👑 BEAT ALL {game.players.length - 1} OTHER PLAYER{game.players.length - 1 !== 1 ? "S" : ""} 👑
+              </div>
+            )}
+
             <div style={{
               fontSize: 14, color: theme.text, marginBottom: 24, fontStyle: "italic", lineHeight: 1.5,
-              padding: "10px 14px", background: "rgba(245,200,66,.08)", border: "1px solid rgba(245,200,66,.2)", borderRadius: 10,
+              padding: "10px 14px", background: theme.goldBg, border: `1px solid ${theme.gold}33`, borderRadius: 10,
             }}>
               {game.winnerLine || "wins with the lowest score! 🎉"}
             </div>

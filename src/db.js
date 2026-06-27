@@ -169,7 +169,8 @@ export async function leaveCurrentRoom(username) {
 
 /* ─── ROOM PARTICIPANTS (people currently sitting in a given room) ─── */
 export async function listRoomParticipants(adminUsername) {
-  const { data, error } = await supabase.from("players").select("*").eq("current_room", norm(adminUsername)).order("created_at", { ascending: true });
+  const u = norm(adminUsername);
+  const { data, error } = await supabase.from("players").select("*").eq("current_room", u).neq("username", u).order("created_at", { ascending: true });
   if (error) { console.error(error); return []; }
   return data || [];
 }

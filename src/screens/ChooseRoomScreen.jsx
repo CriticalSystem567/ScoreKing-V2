@@ -11,6 +11,12 @@ export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined,
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // If they were already sitting in a room before this login (e.g. they got
+  // logged out unexpectedly), offer a one-tap way straight back in — same
+  // ease the host already has with "Host My Room," instead of forcing them
+  // to track down the room code again.
+  const alreadyInARoom = session.joinedHost && session.joinedHost !== session.username;
+
   const submitJoin = async () => {
     setErr("");
     if (!roomCode.trim()) return setErr("Enter a room code");
@@ -30,11 +36,16 @@ export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined,
 
         {!showJoinForm ? (
           <div style={{ ...S.flex("column", "stretch"), gap: 12, marginTop: 10 }}>
-            <button style={{ ...S.btn, ...S.btnAccent, width: "100%", padding: "16px 18px" }} onClick={onChooseOwn}>
+            {alreadyInARoom && (
+              <button style={{ ...S.btn, ...S.btnAccent, width: "100%", padding: "16px 18px" }} onClick={onChooseJoined}>
+                ↩ Return to {session.joinedHost}'s Room
+              </button>
+            )}
+            <button style={{ ...S.btn, ...(alreadyInARoom ? S.btnGhost : S.btnAccent), width: "100%", padding: "16px 18px" }} onClick={onChooseOwn}>
               🏠 Host My Room
             </button>
             <button style={{ ...S.btn, ...S.btnGhost, width: "100%", padding: "16px 18px" }} onClick={() => setShowJoinForm(true)}>
-              ➕ Join a Friend's Room
+              ➕ Join a Different Room
             </button>
             <button style={S.linkBtn} onClick={onLogout}>↩ Logout</button>
           </div>

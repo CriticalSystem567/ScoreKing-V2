@@ -175,6 +175,12 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     });
   };
 
+  // Deduplicated view of setupSelected — defends against any duplicate that
+  // might sneak in (e.g. toggling "I'm playing too" rapidly), so the displayed
+  // count and the actual game-start logic can never diverge from reality.
+  const setupSelectedUnique = [...new Set(setupSelected)];
+  const includeSelfAsPlayer = setupSelectedUnique.includes(session.username);
+
   // candidates available to select as players: everyone currently in the room,
   // plus the host themselves if they've ticked "I'm playing too"
   const selectablePeopleRaw = [
@@ -190,12 +196,6 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     seenUsernames.add(v.username);
     return true;
   });
-
-  // Deduplicated view of setupSelected — defends against any duplicate that
-  // might sneak in (e.g. toggling "I'm playing too" rapidly), so the displayed
-  // count and the actual game-start logic can never diverge from reality.
-  const setupSelectedUnique = [...new Set(setupSelected)];
-  const includeSelfAsPlayer = setupSelectedUnique.includes(session.username);
 
   const applySetup = async () => {
     if (setupSelectedUnique.length < 2) { showToast("⚠️ Select at least 2 players"); return; }

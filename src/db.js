@@ -2,11 +2,9 @@ import { supabase } from "./supabaseClient.js";
 
 /* ════════════════════════════════════════
    Unified account model: ONE "players" table for everyone.
-   - Every account can host a room (if room_code is set) AND/OR
-     join other rooms as a participant (tracked via current_room).
-   - Being inside your OWN room as host is different from being a scored
-     PLAYER in a game — that's controlled by whether your username appears
-     in game.players for that room (see GameScreen's "I'm playing too" toggle).
+   Multi-room: an admin can own MANY rooms over time. Each room has its own
+   numeric id and its own room_code. A player tracks which room they're
+   currently sitting in via current_room_id (a room's id, not a username).
    ════════════════════════════════════════ */
 
 const norm = (s) => String(s || "").trim().toLowerCase();
@@ -85,97 +83,114 @@ export async function changeAvatar(username, avatarUrl) {
 
 /* ─── SUPER-ADMIN ─── */
 export async function listAllPlayers() {
-  const { data, error } = await supabase.from("players").select("username, name, room_code, created_at").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("players").select("username, name, created_at").order("created_at", { ascending: false });
   if (error) { console.error(error); return []; }
   return data || [];
 }
+export async function getRoomCountsByAdmin() {
+  const { data, error } = await supabase.from("rooms").select("admin_username");
+  if (error) { console.error(error); return {}; }
+  const counts = {};
+  (data || []).forEach(r => { counts[r.admin_username] = (counts[r.admin_username] || 0) + 1; });
+  return counts;
+}
 export async function deletePlayerAccount(username) {
   const u = norm(username);
-  // detach anyone currently inside this player's room, if they host one
-  await supabase.from("players").update({ current_room: null }).eq("current_room", u);
+  const { data: ownRooms } = await supabase.from("rooms").select("id").eq("admin_username", u);
+  const roomIds = (ownRooms || []).map(r => r.id);
+  if (roomIds.length > 0) {
+    await supabase.from("players").update({ current_room_id: null }).in("current_room_id", roomIds);
+  }
   await supabase.from("rooms").delete().eq("admin_username", u);
   const { error } = await supabase.from("players").delete().eq("username", u);
   return !error;
 }
 
-/* ─── ROOMS (hosting) ─── */
+/* ─── ROOMS (an admin can own many) ─── */
 export async function createRoom(username) {
   const u = norm(username);
   let code = genCode(6);
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { error: roomErr } = await supabase.from("rooms").insert({ admin_username: u, room_code: code });
-    if (!roomErr) {
-      await supabase.from("players").update({ room_code: code }).eq("username", u);
-      return { ok: true, code };
-    }
-    if (roomErr.code === "23505") { code = genCode(6); continue; }
-    return { ok: false, error: roomErr.message };
+    const { data, error: roomErr } = await supabase.from("rooms").insert({ admin_username: u, room_code: code }).select("id, room_code").single();
+    if (!roomErr && data) return { ok: true, roomId: data.id, code: data.room_code };
+    if (roomErr?.code === "23505") { code = genCode(6); continue; }
+    return { ok: false, error: roomErr?.message || "Could not create room" };
   }
   return { ok: false, error: "Could not create a unique room code, try again" };
 }
 
-export async function getMyRoomCode(username) {
-  const { data } = await supabase.from("players").select("room_code").eq("username", norm(username)).maybeSingle();
-  return data?.room_code || null;
+/* Every room an admin has ever created, newest first. */
+export async function listMyRooms(username) {
+  const { data, error } = await supabase
+    .from("rooms")
+    .select("id, room_code, locked, created_at, game")
+    .eq("admin_username", norm(username))
+    .order("created_at", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(r => ({
+    id: r.id, roomCode: r.room_code, locked: r.locked, createdAt: r.created_at,
+    numPlayers: r.game?.numPlayers || 0, round: r.game?.round || 1,
+  }));
 }
 
-export async function getRoomGame(adminUsername) {
-  const { data, error } = await supabase.from("rooms").select("game, locked").eq("admin_username", norm(adminUsername)).maybeSingle();
+export async function getRoomGame(roomId) {
+  const { data, error } = await supabase.from("rooms").select("game, locked, room_code").eq("id", roomId).maybeSingle();
   if (error || !data) return null;
-  return { ...data.game, _roomLocked: data.locked };
+  return { ...data.game, _roomLocked: data.locked, _roomCode: data.room_code };
 }
-export async function setRoomGame(adminUsername, game) {
-  const { _roomLocked, ...cleanGame } = game;
+export async function setRoomGame(roomId, game) {
+  const { _roomLocked, _roomCode, ...cleanGame } = game;
   const { error } = await supabase.from("rooms")
     .update({ game: cleanGame, updated_at: new Date().toISOString() })
-    .eq("admin_username", norm(adminUsername));
+    .eq("id", roomId);
   if (error) console.error(error);
   return !error;
 }
-export async function setRoomLocked(adminUsername, locked) {
-  const { error } = await supabase.from("rooms").update({ locked }).eq("admin_username", norm(adminUsername));
+export async function setRoomLocked(roomId, locked) {
+  const { error } = await supabase.from("rooms").update({ locked }).eq("id", roomId);
   return !error;
 }
-export async function regenerateRoomCode(adminUsername) {
+export async function regenerateRoomCode(roomId) {
   let newCode = genCode(6);
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { error } = await supabase.from("rooms").update({ room_code: newCode }).eq("admin_username", norm(adminUsername));
-    if (!error) {
-      await supabase.from("players").update({ room_code: newCode }).eq("username", norm(adminUsername));
-      return { ok: true, code: newCode };
-    }
+    const { error } = await supabase.from("rooms").update({ room_code: newCode }).eq("id", roomId);
+    if (!error) return { ok: true, code: newCode };
     if (error.code === "23505") { newCode = genCode(6); continue; }
     return { ok: false, error: error.message };
   }
   return { ok: false, error: "Could not generate a unique code, try again" };
 }
-async function findHostByRoomCode(roomCode) {
-  const { data } = await supabase.from("rooms").select("admin_username").eq("room_code", roomCode.trim().toUpperCase()).maybeSingle();
-  return data?.admin_username || null;
+
+async function findRoomByCode(roomCode) {
+  const { data } = await supabase.from("rooms").select("id, admin_username").eq("room_code", roomCode.trim().toUpperCase()).maybeSingle();
+  return data || null;
 }
 
-/* ─── JOINING / LEAVING / SWITCHING ROOMS (as a participant) ─── */
+/* ─── JOINING / LEAVING ROOMS (as a participant) ─── */
 export async function joinRoomByCode(username, roomCode) {
-  const hostUsername = await findHostByRoomCode(roomCode);
-  if (!hostUsername) return { ok: false, error: "Room code not found — check it with your host" };
-  const { error } = await supabase.from("players").update({ current_room: hostUsername }).eq("username", norm(username));
+  const room = await findRoomByCode(roomCode);
+  if (!room) return { ok: false, error: "Room code not found — check it with your host" };
+  const { error } = await supabase.from("players").update({ current_room_id: room.id }).eq("username", norm(username));
   if (error) return { ok: false, error: error.message };
-  return { ok: true, hostUsername };
+  return { ok: true, roomId: room.id, hostUsername: room.admin_username };
 }
 export async function leaveCurrentRoom(username) {
-  const { error } = await supabase.from("players").update({ current_room: null }).eq("username", norm(username));
+  const { error } = await supabase.from("players").update({ current_room_id: null }).eq("username", norm(username));
   return !error;
 }
 
 /* ─── ROOM PARTICIPANTS (people currently sitting in a given room) ─── */
-export async function listRoomParticipants(adminUsername) {
-  const u = norm(adminUsername);
-  const { data, error } = await supabase.from("players").select("*").eq("current_room", u).neq("username", u).order("created_at", { ascending: true });
+export async function listRoomParticipants(roomId, hostUsername) {
+  const { data, error } = await supabase
+    .from("players").select("*")
+    .eq("current_room_id", roomId)
+    .neq("username", norm(hostUsername))
+    .order("created_at", { ascending: true });
   if (error) { console.error(error); return []; }
   return data || [];
 }
 export async function removeParticipant(username) {
-  const { error } = await supabase.from("players").update({ current_room: null }).eq("username", norm(username));
+  const { error } = await supabase.from("players").update({ current_room_id: null }).eq("username", norm(username));
   return !error;
 }
 
@@ -234,7 +249,7 @@ export async function getMyOverallStats(username) {
   const played = history.length;
   const won = history.filter(r => r.won).length;
   const lost = history.filter(r => !r.won && r.eliminated).length;
-  const other = played - won - lost; // e.g. game reset before anyone was eliminated/won
+  const other = played - won - lost;
   const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
   return { played, won, lost, other, winRate };
 }

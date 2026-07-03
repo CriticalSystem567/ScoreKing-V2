@@ -20,8 +20,7 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
     if (!res.ok) { setErr(res.error); return; }
 
     const p = res.player;
-    const session = { username: p.username, name: p.name, avatar: p.avatar, roomCode: p.room_code, joinedHost: p.current_room };
-    onDone(session);
+    onDone({ username: p.username, name: p.name, avatar: p.avatar });
   };
 
   return (

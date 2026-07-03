@@ -1,21 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
-import { joinRoomByCode } from "../db.js";
+import { joinRoomByCode, createRoom, listMyRooms } from "../db.js";
 
-export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined, onUpdateSession, onLogout }) {
+export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoinedRoom, onUpdateSession, onLogout }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
-  const [showJoinForm, setShowJoinForm] = useState(false);
+  const [mode, setMode] = useState("menu"); // menu | join | reopen
   const [roomCode, setRoomCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // If they were already sitting in a room before this login (e.g. they got
-  // logged out unexpectedly), offer a one-tap way straight back in — same
-  // ease the host already has with "Host My Room," instead of forcing them
-  // to track down the room code again.
-  const alreadyInARoom = session.joinedHost && session.joinedHost !== session.username;
+  const [myRooms, setMyRooms] = useState(null); // null = not loaded yet
+  const [roomsLoading, setRoomsLoading] = useState(false);
+
+  useEffect(() => {
+    if (mode === "reopen" && myRooms === null) {
+      setRoomsLoading(true);
+      listMyRooms(session.username).then(rooms => { setMyRooms(rooms); setRoomsLoading(false); });
+    }
+  }, [mode]);
+
+  const handleNewRoom = async () => {
+    setErr(""); setBusy(true);
+    const res = await createRoom(session.username);
+    setBusy(false);
+    if (!res.ok) { setErr(res.error); return; }
+    onEnterOwnRoom(res.roomId);
+  };
 
   const submitJoin = async () => {
     setErr("");
@@ -24,32 +36,41 @@ export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined,
     const res = await joinRoomByCode(session.username, roomCode.trim());
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
-    onUpdateSession?.({ joinedHost: res.hostUsername });
-    onChooseJoined();
+    onUpdateSession?.({});
+    onEnterJoinedRoom(res.roomId);
   };
 
-  return (
-    <div style={S.screen}>
-      <div style={S.loginBox}>
-        <div style={S.logo}>ScoreKing ♠️</div>
-        <div style={S.logoSub}>Welcome back, {session.name || session.username}</div>
+  if (mode === "menu") {
+    return (
+      <div style={S.screen}>
+        <div style={S.loginBox}>
+          <div style={S.logo}>ScoreKing ♠️</div>
+          <div style={S.logoSub}>Welcome back, {session.name || session.username}</div>
 
-        {!showJoinForm ? (
           <div style={{ ...S.flex("column", "stretch"), gap: 12, marginTop: 10 }}>
-            {alreadyInARoom && (
-              <button style={{ ...S.btn, ...S.btnAccent, width: "100%", padding: "16px 18px" }} onClick={onChooseJoined}>
-                ↩ Return to {session.joinedHost}'s Room
-              </button>
-            )}
-            <button style={{ ...S.btn, ...(alreadyInARoom ? S.btnGhost : S.btnAccent), width: "100%", padding: "16px 18px" }} onClick={onChooseOwn}>
-              🏠 Host My Room
+            <button style={{ ...S.btn, ...S.btnAccent, width: "100%", padding: "16px 18px" }} onClick={handleNewRoom} disabled={busy}>
+              {busy ? "Creating…" : "✨ Create a New Room"}
             </button>
-            <button style={{ ...S.btn, ...S.btnGhost, width: "100%", padding: "16px 18px" }} onClick={() => setShowJoinForm(true)}>
-              ➕ Join a Different Room
+            <button style={{ ...S.btn, ...S.btnGhost, width: "100%", padding: "16px 18px" }} onClick={() => setMode("join")}>
+              ➕ Join a Friend's Room
             </button>
+            <button style={{ ...S.btn, ...S.btnGhost, width: "100%", padding: "16px 18px" }} onClick={() => setMode("reopen")}>
+              📂 Reopen One of My Rooms
+            </button>
+            {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
             <button style={S.linkBtn} onClick={onLogout}>↩ Logout</button>
           </div>
-        ) : (
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "join") {
+    return (
+      <div style={S.screen}>
+        <div style={S.loginBox}>
+          <div style={S.logo}>ScoreKing ♠️</div>
+          <div style={S.logoSub}>Join a Friend's Room</div>
           <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left", marginTop: 10 }}>
             <div>
               <label style={S.fieldLabel}>Room code</label>
@@ -61,9 +82,44 @@ export default function ChooseRoomScreen({ session, onChooseOwn, onChooseJoined,
             <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={submitJoin} disabled={busy}>
               {busy ? "Joining…" : "Join Room"}
             </button>
-            <button style={S.linkBtn} onClick={() => { setShowJoinForm(false); setErr(""); }}>← Back</button>
+            <button style={S.linkBtn} onClick={() => { setMode("menu"); setErr(""); }}>← Back</button>
           </div>
-        )}
+        </div>
+      </div>
+    );
+  }
+
+  // mode === "reopen"
+  return (
+    <div style={S.screen}>
+      <div style={{ ...S.loginBox, maxWidth: 420 }}>
+        <div style={S.logo}>ScoreKing ♠️</div>
+        <div style={S.logoSub}>Reopen a Room</div>
+
+        <div style={{ marginTop: 10, textAlign: "left" }}>
+          {roomsLoading && <div style={{ textAlign: "center", color: theme.textFaint, padding: 20, fontSize: 13 }}>Loading your rooms…</div>}
+          {!roomsLoading && myRooms && myRooms.length === 0 && (
+            <div style={{ textAlign: "center", color: theme.textFaint, padding: 20, fontSize: 13 }}>
+              You haven't created any rooms yet.
+            </div>
+          )}
+          {!roomsLoading && myRooms && myRooms.map(r => (
+            <button key={r.id} onClick={() => onEnterOwnRoom(r.id)} style={{
+              display: "block", width: "100%", textAlign: "left", padding: "12px 14px", marginBottom: 8,
+              borderRadius: 12, border: `1px solid ${theme.surfaceBorder}`, background: theme.surface, cursor: "pointer",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 16, color: theme.gold, letterSpacing: "0.05em" }}>{r.roomCode}</div>
+                {r.locked && <span style={{ fontSize: 10, color: theme.red, fontWeight: 700 }}>🔒 CLOSED</span>}
+              </div>
+              <div style={{ fontSize: 11, color: theme.textFaint, marginTop: 4 }}>
+                {r.numPlayers} player{r.numPlayers !== 1 ? "s" : ""} · round {r.round} · created {new Date(r.createdAt).toLocaleDateString()}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <button style={{ ...S.linkBtn, marginTop: 8 }} onClick={() => { setMode("menu"); }}>← Back</button>
       </div>
     </div>
   );

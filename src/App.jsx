@@ -22,41 +22,55 @@ function getSuperParam() {
 export default function App() {
   const [screen, setScreen] = useState("landing");
   const [aboutSeen, setAboutSeen] = useState(false);
-  // session: { username, name, avatar, roomCode, joinedHost }
+  // session: { username, name, avatar }
   const [session, setSession] = useState(null);
-  // viewMode is only meaningful once a choice has been made on ChooseRoomScreen
-  const [viewMode, setViewMode] = useState(null); // null | "own" | "joined"
+  // viewMode: whose room is currently active — "own" (I host it) or "joined" (someone else's)
+  const [viewMode, setViewMode] = useState(null);
+  // activeRoomId: the specific room (by id) currently being viewed. Required
+  // because an admin can own MULTIPLE rooms now — viewMode alone isn't enough
+  // to know which one.
+  const [activeRoomId, setActiveRoomId] = useState(null);
 
   useEffect(() => {
     const sp = getSuperParam();
     if (sp && sp === SUPER_ADMIN_PASSPHRASE) setScreen("superadmin");
   }, []);
 
-  const goLanding = () => { setSession(null); setViewMode(null); setScreen("landing"); };
+  const goLanding = () => { setSession(null); setViewMode(null); setActiveRoomId(null); setScreen("landing"); };
   const updateSession = (patch) => setSession(prev => ({ ...prev, ...patch }));
+
+  const enterOwnRoom = (roomId) => { setActiveRoomId(roomId); setViewMode("own"); };
+  const enterJoinedRoom = (roomId) => { setActiveRoomId(roomId); setViewMode("joined"); };
+
+  // Backing out of an active room (e.g. "New Room" or "Exit Room") returns to
+  // the choice screen rather than logging all the way out.
+  const backToChoice = () => { setActiveRoomId(null); setViewMode(null); };
 
   if (screen === "superadmin") return <SuperAdminScreen onExit={goLanding} />;
 
-  // Logged in, but hasn't picked host-vs-join yet this session: always ask, every login.
-  if (session && !viewMode) {
+  // Logged in, but no room actively open yet: always show the choice screen.
+  if (session && !activeRoomId) {
     return (
       <ChooseRoomScreen
         session={session}
-        onChooseOwn={() => setViewMode("own")}
-        onChooseJoined={() => setViewMode("joined")}
+        onEnterOwnRoom={enterOwnRoom}
+        onEnterJoinedRoom={enterJoinedRoom}
         onUpdateSession={updateSession}
         onLogout={goLanding}
       />
     );
   }
 
-  if (session && viewMode) {
+  if (session && activeRoomId) {
     return (
       <GameScreen
         session={session}
         viewMode={viewMode}
+        roomId={activeRoomId}
         onLogout={goLanding}
-        onSwitchView={(mode) => setViewMode(mode)}
+        onBackToChoice={backToChoice}
+        onEnterOwnRoom={enterOwnRoom}
+        onEnterJoinedRoom={enterJoinedRoom}
         onUpdateSession={updateSession}
       />
     );
@@ -75,7 +89,7 @@ export default function App() {
       return (
         <JoinRoomScreen
           onBack={() => setScreen("landing")}
-          onDone={(s) => { setSession(s); setViewMode("joined"); }}
+          onDone={(s, roomId) => { setSession(s); enterJoinedRoom(roomId); }}
         />
       );
     case "signup":

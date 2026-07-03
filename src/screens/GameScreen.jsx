@@ -13,18 +13,18 @@ import {
 
 const POLL_MS = 3000;
 
-export default function GameScreen({ session, viewMode, onLogout, onSwitchView, onUpdateSession }) {
+export default function GameScreen({ session, viewMode, roomId, onLogout, onBackToChoice, onEnterOwnRoom, onEnterJoinedRoom, onUpdateSession }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
 
   const isOwnView = viewMode === "own";
-  // Whose room are we currently looking at? My own (session.username) or
-  // whichever host's room I joined (carried in session.joinedHost).
-  const roomOwner = isOwnView ? session.username : session.joinedHost;
   const isHost = isOwnView; // I'm the host/scorer of the room currently being viewed
 
-  const [myRoomCode, setMyRoomCode] = useState(session.roomCode || null);
-  const [creatingRoom, setCreatingRoom] = useState(false);
+  // The room's host username — needed for history queries and display. For
+  // "own" view it's just me; for "joined" view we look it up once the room
+  // record loads (see roomHostUsername state below).
+  const [roomHostUsername, setRoomHostUsername] = useState(isOwnView ? session.username : null);
+  const roomOwner = roomHostUsername;
 
   const [game, setGame] = useState(null);
   const [roundInputs, setRoundInputs] = useState({});
@@ -39,12 +39,13 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
   const [confirmDlg, setConfirmDlg] = useState(null);
   const toastTimer = useRef(null);
 
-  const [participants, setParticipants] = useState([]); // people sitting in roomOwner's room right now
+  const [participants, setParticipants] = useState([]); // people sitting in this room right now
   const [setupSelected, setSetupSelected] = useState([]);
   const [setupMax, setSetupMax] = useState(200);
   const [roomCode, setRoomCodeState] = useState(null);
   const [regenBusy, setRegenBusy] = useState(false);
   const [lockBusy, setLockBusy] = useState(false);
+  const [newRoomBusy, setNewRoomBusy] = useState(false);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileTab, setProfileTab] = useState("profile"); // profile | room | players | history
@@ -71,52 +72,42 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
   };
   const askConfirm = (msg, onYes) => setConfirmDlg({ msg, onYes });
 
-  /* ── create a room on the fly if viewing "own" but no room exists yet ── */
-  useEffect(() => {
-    if (!isOwnView) return;
-    if (myRoomCode) return;
-    (async () => {
-      setCreatingRoom(true);
-      const res = await createRoom(session.username);
-      setCreatingRoom(false);
-      if (res.ok) { setMyRoomCode(res.code); onUpdateSession?.({ roomCode: res.code }); }
-    })();
-  }, [isOwnView, myRoomCode, session.username]);
-
   /* ── fetch + realtime game sync ── */
   const fetchGame = useCallback(async () => {
-    if (!roomOwner) return;
-    const g = await getRoomGame(roomOwner);
+    if (!roomId) return;
+    const g = await getRoomGame(roomId);
     if (g) {
       setGame(prev => (!prev || g.updatedAt > (prev.updatedAt || 0)) ? g : prev);
       setLastSync(new Date());
+      setRoomCodeState(g._roomCode || null);
     } else if (isOwnView) {
       const fresh = { ...DEFAULT_GAME, updatedAt: Date.now() };
-      await setRoomGame(roomOwner, fresh);
+      await setRoomGame(roomId, fresh);
       setGame(fresh);
     }
-  }, [roomOwner, isOwnView]);
+  }, [roomId, isOwnView]);
 
   useEffect(() => {
-    if (!roomOwner) return;
+    if (!roomId) return;
     fetchGame();
     pollRef.current = setInterval(fetchGame, POLL_MS);
 
     const channel = supabase
-      .channel(`room-${roomOwner}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "rooms", filter: `admin_username=eq.${roomOwner}` },
+      .channel(`room-${roomId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
         (payload) => {
           const g = payload.new?.game;
           if (g) {
-            const merged = { ...g, _roomLocked: payload.new?.locked || false };
+            const merged = { ...g, _roomLocked: payload.new?.locked || false, _roomCode: payload.new?.room_code };
             setGame(prev => (!prev || merged.updatedAt > (prev.updatedAt || 0)) ? merged : prev);
             setLastSync(new Date());
+            setRoomCodeState(payload.new?.room_code || null);
           }
         })
       .subscribe();
 
     return () => { clearInterval(pollRef.current); supabase.removeChannel(channel); };
-  }, [roomOwner, fetchGame]);
+  }, [roomId, fetchGame]);
 
   useEffect(() => {
     if (!game) return;
@@ -136,26 +127,33 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     if (!game?.winner) lastSeenWinnerRef.current = null;
   }, [game?.winner]);
 
+  /* ── resolve the host's username for "joined" view (needed for display + participant queries) ── */
+  useEffect(() => {
+    if (isOwnView) { setRoomHostUsername(session.username); return; }
+    if (!roomId) return;
+    supabase.from("rooms").select("admin_username").eq("id", roomId).maybeSingle()
+      .then(({ data }) => { if (data) setRoomHostUsername(data.admin_username); });
+  }, [isOwnView, roomId, session.username]);
+
   /* ── participants currently in this room (only meaningful when I'm the host) ── */
   const refreshParticipants = useCallback(async () => {
-    if (!isHost) return;
-    const list = await listRoomParticipants(roomOwner);
+    if (!isHost || !roomId || !roomOwner) return;
+    const list = await listRoomParticipants(roomId, roomOwner);
     setParticipants(list);
-  }, [isHost, roomOwner]);
+  }, [isHost, roomId, roomOwner]);
 
   useEffect(() => {
-    if (!isHost || !roomOwner) return;
+    if (!isHost || !roomId) return;
     refreshParticipants();
-    setRoomCodeState(myRoomCode);
     const iv = setInterval(refreshParticipants, POLL_MS);
     return () => clearInterval(iv);
-  }, [isHost, roomOwner, myRoomCode, refreshParticipants]);
+  }, [isHost, roomId, refreshParticipants]);
 
   /* ── push game state ── */
   const pushGame = async (newG) => {
     const g = { ...newG, updatedAt: Date.now() };
     setSyncing(true);
-    await setRoomGame(roomOwner, g);
+    await setRoomGame(roomId, g);
     setGame(g);
     setLastSync(new Date());
     setSyncing(false);
@@ -280,7 +278,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     if (active.length === 0) showToast("All players eliminated!");
   };
 
-  const resetGame = async () => {
+  const newGame = async () => {
     if (game.history && game.history.length > 0) {
       const usernameByPlayerIndex = {};
       game.players.forEach((p, i) => { if (p.username) usernameByPlayerIndex[i] = p.username; });
@@ -291,7 +289,27 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     setSetupSelected(game.players.map(p => p.username).filter(Boolean));
     setRoundInputs({});
     setShowWinner(true);
-    showToast("Game reset — setup unlocked");
+    showToast("New game ready — players and dealer order can be adjusted before you start.");
+  };
+
+  const handleNewRoom = () => {
+    askConfirm(
+      "Create a brand-new, completely empty room? Your current room (with its code, players, and history) stays exactly as it is — you can reopen it anytime from the room-choice screen.",
+      async () => {
+        // Record the outgoing game's history first, same as a normal reset would.
+        if (game.history && game.history.length > 0) {
+          const usernameByPlayerIndex = {};
+          game.players.forEach((p, i) => { if (p.username) usernameByPlayerIndex[i] = p.username; });
+          await recordFinishedGame({ adminUsername: roomOwner, game, usernameByPlayerIndex });
+        }
+        setNewRoomBusy(true);
+        const res = await createRoom(session.username);
+        setNewRoomBusy(false);
+        if (!res.ok) { showToast("⚠️ Failed: " + res.error); return; }
+        showToast("✅ New room created!");
+        onEnterOwnRoom?.(res.roomId);
+      }
+    );
   };
 
   const handleExport = () => {
@@ -305,9 +323,9 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
   const handleRegenerateCode = () => {
     askConfirm("Generate a new room code? The old code will stop working immediately.", async () => {
       setRegenBusy(true);
-      const res = await regenerateRoomCode(roomOwner);
+      const res = await regenerateRoomCode(roomId);
       setRegenBusy(false);
-      if (res.ok) { setRoomCodeState(res.code); setMyRoomCode(res.code); onUpdateSession?.({ roomCode: res.code }); showToast("✅ New room code generated"); }
+      if (res.ok) { setRoomCodeState(res.code); showToast("✅ New room code generated"); }
       else showToast("⚠️ Failed: " + res.error);
     });
   };
@@ -320,7 +338,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
         : "Reopen this room? Players will be able to view and play again.",
       async () => {
         setLockBusy(true);
-        const ok = await setRoomLocked(roomOwner, goingToLock);
+        const ok = await setRoomLocked(roomId, goingToLock);
         setLockBusy(false);
         if (ok) { setGame(prev => ({ ...prev, _roomLocked: goingToLock })); showToast(goingToLock ? "🔒 Room closed" : "🔓 Room reopened"); }
         else showToast("⚠️ Failed to update room status");
@@ -328,10 +346,23 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     );
   };
 
-  const handleRemoveParticipant = (username) => {
-    askConfirm(`Remove this player from your room?`, async () => {
+  const handleRemoveParticipant = (username, displayName) => {
+    askConfirm(`Remove ${displayName || "this player"} from your room? If they're in the current game, they'll be removed from it immediately too.`, async () => {
       const ok = await removeParticipant(username);
-      if (ok) { showToast("Removed"); refreshParticipants(); }
+      if (!ok) { showToast("⚠️ Failed to remove"); return; }
+
+      // If they're currently part of the live game, kick them out of it too —
+      // not just stop them from being selectable next time.
+      if (game && game.players.some(p => p.username === username)) {
+        const players = game.players.filter(p => p.username !== username);
+        const removedWasDealer = game.players.findIndex(p => p.username === username) === (game.dealerIndex || 0);
+        const dealerIndex = removedWasDealer ? 0 : Math.min(game.dealerIndex || 0, Math.max(0, players.length - 1));
+        await pushGame({ ...game, players, numPlayers: players.length, dealerIndex });
+        setSetupSelected(prev => prev.filter(u => u !== username));
+      }
+
+      showToast("Removed");
+      refreshParticipants();
     });
   };
 
@@ -373,20 +404,18 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
     const res = await joinRoomByCode(session.username, joinCodeVal.trim());
     setProfileBusy(false);
     if (!res.ok) { setProfileErr(res.error); return; }
-    onUpdateSession?.({ joinedHost: res.hostUsername });
-    onSwitchView?.("joined");
     setProfileOpen(false);
     showToast("✅ Joined! Viewing that room now.");
+    onEnterJoinedRoom?.(res.roomId);
   };
 
   const handleLeaveJoinedRoom = () => {
-    askConfirm("Leave this room? You can join another anytime.", async () => {
+    askConfirm("Exit this room? You can join another anytime.", async () => {
       const ok = await leaveCurrentRoom(session.username);
       if (ok) {
         showToast("Left the room");
-        onUpdateSession?.({ joinedHost: null });
-        onSwitchView?.("own");
         setProfileOpen(false);
+        onBackToChoice?.();
       } else showToast("⚠️ Failed to leave");
     });
   };
@@ -418,9 +447,9 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
   const getActive = () => game ? game.players.filter(p => !p.eliminated).length : 0;
   const dealerIdx = game?.dealerIndex || 0;
 
-  if (!roomOwner || creatingRoom) {
+  if (!roomId || !roomOwner) {
     return <div style={S.appWrap}><div style={{ textAlign: "center", padding: 40, color: theme.textDim }}>
-      {creatingRoom ? "Setting up your room…" : "Loading…"}
+      Loading…
     </div></div>;
   }
 
@@ -745,9 +774,14 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
           <button style={{ ...S.btn, ...S.btnGreen, gridColumn: "span 2" }} onClick={addRound} disabled={syncing}>
             {syncing ? "Saving…" : "▶ Add Round"}
           </button>
-          <button style={{ ...S.btn, ...S.btnRed }} onClick={() => askConfirm("Reset game?", resetGame)}>↺ Reset</button>
+          <button style={{ ...S.btn, ...S.btnRed }} onClick={() => askConfirm("Start a new game? Scores reset to 0, but you keep this room, its code, and its players.", newGame)}>
+            ↺ New Game
+          </button>
           <button style={{ ...S.btn, ...S.btnGhost }} onClick={() => setShowHistory(v => !v)}>📊 History</button>
-          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={handleExport}>⬇ Export CSV</button>
+          <button style={{ ...S.btn, ...S.btnGhost }} onClick={handleNewRoom} disabled={newRoomBusy}>
+            {newRoomBusy ? "Creating…" : "🆕 New Room"}
+          </button>
+          <button style={{ ...S.btn, ...S.btnGhost }} onClick={handleExport}>⬇ Export CSV</button>
         </div>
       )}
 
@@ -831,7 +865,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
             </div>
             {isHost && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={resetGame}>🎮 Play Again</button>
+                <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={newGame}>🎮 Play Again</button>
                 <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowWinner(false)}>Close (review scores first)</button>
               </div>
             )}
@@ -942,7 +976,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                 <div style={S.sectionLabel}>🏠 Current Room</div>
                 <div style={{ textAlign: "center", padding: "24px 16px", background: theme.accentBg, border: `1px solid ${theme.accentBorder}`, borderRadius: 14, marginBottom: 10 }}>
                   <div style={{ fontFamily: "monospace", fontSize: 32, fontWeight: 800, letterSpacing: "0.1em", color: theme.gold }}>
-                    {isOwnView ? (roomCode || myRoomCode || "…") : "— hosted by " + roomOwner + " —"}
+                    {isOwnView ? (roomCode || "…") : "— hosted by " + roomOwner + " —"}
                   </div>
                   <div style={{ fontSize: 12, color: theme.textDim, marginTop: 8 }}>
                     {isOwnView
@@ -954,6 +988,11 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                 {!isOwnView && (
                   <button style={{ ...S.btn, ...S.btnRed, width: "100%", marginBottom: 18 }} onClick={handleLeaveJoinedRoom}>
                     🚪 Exit This Room
+                  </button>
+                )}
+                {isOwnView && (
+                  <button style={{ ...S.btn, ...S.btnGhost, width: "100%", marginBottom: 18 }} onClick={() => { setProfileOpen(false); onBackToChoice?.(); }}>
+                    ↩ Back to Room Picker
                   </button>
                 )}
 
@@ -1018,7 +1057,7 @@ export default function GameScreen({ session, viewMode, onLogout, onSwitchView, 
                       <div style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{v.name}</div>
                       <div style={{ fontSize: 11, color: theme.textFaint }}>@{v.username}{v.room_code && " · also hosts their own room"}</div>
                     </div>
-                    <button style={{ ...S.btn, ...S.btnRed, padding: "4px 8px", minHeight: 26, fontSize: 11 }} onClick={() => handleRemoveParticipant(v.username)}>✕</button>
+                    <button style={{ ...S.btn, ...S.btnRed, padding: "4px 8px", minHeight: 26, fontSize: 11 }} onClick={() => handleRemoveParticipant(v.username, v.name)}>✕</button>
                   </div>
                 ))}
                 {participants.length === 0 && (

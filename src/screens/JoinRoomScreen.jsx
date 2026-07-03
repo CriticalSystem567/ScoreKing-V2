@@ -28,7 +28,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
   const attachToRoom = async (forUsername) => {
     const res = await joinRoomByCode(forUsername, roomCode.trim());
     if (!res.ok) { setErr(res.error); return null; }
-    return { hostUsername: res.hostUsername };
+    return { roomId: res.roomId };
   };
 
   const submitLogin = async () => {
@@ -41,7 +41,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
     const attached = await attachToRoom(res.player.username);
     setBusy(false);
     if (!attached) return;
-    onDone({ username: res.player.username, name: res.player.name, avatar: res.player.avatar, roomCode: res.player.room_code, joinedHost: attached.hostUsername });
+    onDone({ username: res.player.username, name: res.player.name, avatar: res.player.avatar }, attached.roomId);
   };
 
   const submitSignup = async () => {
@@ -61,7 +61,7 @@ export default function JoinRoomScreen({ onBack, onDone }) {
     const attached = await attachToRoom(res.username);
     setBusy(false);
     if (!attached) return;
-    onDone({ username: res.username, name: name.trim(), avatar: null, roomCode: null, joinedHost: attached.hostUsername });
+    onDone({ username: res.username, name: name.trim(), avatar: null }, attached.roomId);
   };
 
   if (!mode) {

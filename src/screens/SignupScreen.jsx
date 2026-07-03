@@ -30,7 +30,7 @@ export default function SignupScreen({ onBack, onDone }) {
     });
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
-    onDone({ username: res.username, name: name.trim(), avatar: null, roomCode: null });
+    onDone({ username: res.username, name: name.trim(), avatar: null });
   };
 
   return (

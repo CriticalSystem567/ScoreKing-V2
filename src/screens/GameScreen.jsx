@@ -221,25 +221,27 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
   const addRound = async () => {
     if (syncing) return;
     const scores = roundInputs;
-    let any = false;
     const dealerIdx = game.dealerIndex || 0;
     const dealerName = game.players[dealerIdx]?.name || `Player ${dealerIdx + 1}`;
-
     // A field left blank means "no entry for this player" (skip). A field that's
     // explicitly "0" means they declared and won this round — that's a real,
     // meaningful entry, not a no-op, so it must be tracked and shown in history.
     const wasEntered = (i) => scores[i] !== undefined && scores[i] !== "";
 
+    const activePlayers = game.players.map((p, i) => ({ p, i })).filter(({ p }) => !p.eliminated);
+    const missing = activePlayers.filter(({ i }) => scores[i] === undefined || scores[i] === "");
+    if (missing.length > 0) {
+      showToast(`⚠️ Enter score for: ${missing.map(({ p }) => p.name).join(", ")}`);
+      return;
+    }
+
     const players = game.players.map((p, i) => {
       if (p.eliminated) return p;
       if (!wasEntered(i)) return p;
       const pts = Math.max(0, parseInt(scores[i]));
-      any = true;
       const total = p.total + pts;
       return { ...p, total, lastAdded: pts, roundWon: pts === 0, eliminated: total >= game.maxScore };
     });
-    if (!any) { showToast("⚠️ No scores entered!"); return; }
-
     const history = [...game.history];
     game.players.forEach((p, i) => {
       if (p.eliminated || !wasEntered(i)) return;
@@ -252,13 +254,11 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
         dealer: dealerName, time: new Date().toLocaleTimeString(),
       });
     });
-
     let nextDealer = dealerIdx;
     for (let step = 1; step <= players.length; step++) {
       const candidate = (dealerIdx + step) % players.length;
       if (!players[candidate].eliminated) { nextDealer = candidate; break; }
     }
-
     const jokes = {};
     players.forEach((p, i) => {
       if (p.eliminated) return;
@@ -266,11 +266,9 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       const zone = pct >= 90 ? "danger" : pct >= 70 ? "warn" : null;
       if (zone) jokes[i] = { zone, text: getZoneJoke(`${i}`, zone) };
     });
-
     const active = players.filter(p => !p.eliminated);
     const winner = active.length === 1 ? active[0].name : null;
     const winnerLine = winner ? getWinnerLine(`${roomOwner}-${game.round}-${winner}`) : null;
-
     const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner, winnerLine, jokes };
     await pushGame(newG);
     setRoundInputs({});

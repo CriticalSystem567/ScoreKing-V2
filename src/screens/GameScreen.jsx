@@ -114,6 +114,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     setSetupMax(game.maxScore);
     if (!game.gameStarted) {
       setSetupSelected(game.players.map(p => p.username).filter(Boolean));
+      refreshParticipants();
     }
   }, [game?.maxScore, game?.gameStarted]);
 

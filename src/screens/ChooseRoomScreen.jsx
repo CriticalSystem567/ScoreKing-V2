@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { joinRoomByCode, createRoom, listMyRooms } from "../db.js";
+import QRScanner from "../components/QRScanner.jsx";
 
 export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoinedRoom, onUpdateSession, onLogout }) {
   const { theme } = useTheme();
@@ -10,8 +11,9 @@ export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoine
   const [roomCode, setRoomCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
-  const [myRooms, setMyRooms] = useState(null); // null = not loaded yet
+  const [myRooms, setMyRooms] = useState(null);
   const [roomsLoading, setRoomsLoading] = useState(false);
 
   useEffect(() => {
@@ -29,15 +31,23 @@ export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoine
     onEnterOwnRoom(res.roomId);
   };
 
-  const submitJoin = async () => {
+  const submitJoin = async (code) => {
+    const codeToUse = (code || roomCode).trim();
     setErr("");
-    if (!roomCode.trim()) return setErr("Enter a room code");
+    if (!codeToUse) return setErr("Enter a room code");
     setBusy(true);
-    const res = await joinRoomByCode(session.username, roomCode.trim());
+    const res = await joinRoomByCode(session.username, codeToUse);
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
     onUpdateSession?.({});
     onEnterJoinedRoom(res.roomId);
+  };
+
+  const handleScan = (scannedCode) => {
+    setShowScanner(false);
+    setRoomCode(scannedCode);
+    // Auto-submit immediately after a successful scan
+    submitJoin(scannedCode);
   };
 
   if (mode === "menu") {
@@ -67,25 +77,50 @@ export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoine
 
   if (mode === "join") {
     return (
-      <div style={S.screen}>
-        <div style={S.loginBox}>
-          <div style={S.logo}>ScoreKing ♠️</div>
-          <div style={S.logoSub}>Join a Friend's Room</div>
-          <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left", marginTop: 10 }}>
-            <div>
-              <label style={S.fieldLabel}>Room code</label>
-              <input style={{ ...S.input, fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
-                value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10}
-                onKeyDown={e => e.key === "Enter" && submitJoin()} />
+      <>
+        {showScanner && (
+          <QRScanner
+            onScan={handleScan}
+            onClose={() => setShowScanner(false)}
+          />
+        )}
+        <div style={S.screen}>
+          <div style={S.loginBox}>
+            <div style={S.logo}>ScoreKing ♠️</div>
+            <div style={S.logoSub}>Join a Friend's Room</div>
+            <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left", marginTop: 10 }}>
+
+              {/* QR Scan button */}
+              <button style={{
+                ...S.btn, width: "100%", padding: "14px 18px",
+                background: theme.accentBg, border: `1px solid ${theme.accentBorder}`, color: theme.accentLight,
+              }} onClick={() => setShowScanner(true)}>
+                📷 Scan QR Code
+              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1, height: 1, background: theme.divider }} />
+                <span style={{ fontSize: 11, color: theme.textFaint }}>or enter manually</span>
+                <div style={{ flex: 1, height: 1, background: theme.divider }} />
+              </div>
+
+              <div>
+                <label style={S.fieldLabel}>Room code</label>
+                <input style={{ ...S.input, fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
+                  value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10}
+                  onKeyDown={e => e.key === "Enter" && submitJoin()} />
+              </div>
+
+              {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
+
+              <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={() => submitJoin()} disabled={busy}>
+                {busy ? "Joining…" : "Join Room"}
+              </button>
+              <button style={S.linkBtn} onClick={() => { setMode("menu"); setErr(""); }}>← Back</button>
             </div>
-            {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
-            <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={submitJoin} disabled={busy}>
-              {busy ? "Joining…" : "Join Room"}
-            </button>
-            <button style={S.linkBtn} onClick={() => { setMode("menu"); setErr(""); }}>← Back</button>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 

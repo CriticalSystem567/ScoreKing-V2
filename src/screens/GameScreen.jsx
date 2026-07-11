@@ -4,6 +4,7 @@ import { getStyles, Avatar } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { PLAYER_COLORS, DEFAULT_GAME, buildGameCSV, downloadCSV } from "../constants.js";
 import { getZoneJoke, getWinnerLine, getRoundWinLine } from "../jokes.js";
+import QRCodeDisplay from "../components/QRCodeDisplay.jsx";
 import {
   getRoomGame, setRoomGame, createRoom, setRoomLocked, regenerateRoomCode,
   listRoomParticipants, removeParticipant, joinRoomByCode, leaveCurrentRoom,
@@ -1033,10 +1034,20 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
                   </div>
                   <div style={{ fontSize: 12, color: theme.textDim, marginTop: 8 }}>
                     {isOwnView
-                      ? "This is your room — share the code above with friends so they can join."
+                      ? "Share this code or show the QR below — friends can scan it to join instantly."
                       : `You're currently in ${roomOwner}'s room as a player.`}
                   </div>
                 </div>
+
+                {isOwnView && roomCode && (
+                  <div style={{ marginBottom: 14 }}>
+                    <QRCodeDisplay
+                      value={roomCode}
+                      size={200}
+                      label="Players can scan this to join your room"
+                    />
+                  </div>
+                )}
 
                 {!isOwnView && (
                   <button style={{ ...S.btn, ...S.btnRed, width: "100%", marginBottom: 18 }} onClick={handleLeaveJoinedRoom}>

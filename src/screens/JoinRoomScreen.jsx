@@ -3,12 +3,14 @@ import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { SECURITY_QUESTIONS } from "../constants.js";
 import { joinRoomByCode, login, signUp } from "../db.js";
+import QRScanner from "../components/QRScanner.jsx";
 
 export default function JoinRoomScreen({ onBack, onDone }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState(null); // null | "login" | "signup"
+  const [showScanner, setShowScanner] = useState(false);
 
   // login fields
   const [username, setUsername] = useState("");
@@ -66,33 +68,54 @@ export default function JoinRoomScreen({ onBack, onDone }) {
 
   if (!mode) {
     return (
-      <div style={S.screen}>
-        <div style={S.loginBox}>
-          <div style={S.logo}>ScoreKing ♠️</div>
-          <div style={S.logoSub}>Join a Friend's Game</div>
-          <div style={{ fontSize: 12, color: theme.textFaint, marginBottom: 16, lineHeight: 1.5 }}>
-            Ask your host for their room code.
-          </div>
-
-          <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
-            <div>
-              <label style={S.fieldLabel}>Room code</label>
-              <input style={{ ...S.input, fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
-                value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10} />
+      <>
+        {showScanner && (
+          <QRScanner
+            onScan={(code) => { setShowScanner(false); setRoomCode(code); }}
+            onClose={() => setShowScanner(false)}
+          />
+        )}
+        <div style={S.screen}>
+          <div style={S.loginBox}>
+            <div style={S.logo}>ScoreKing ♠️</div>
+            <div style={S.logoSub}>Join a Friend's Game</div>
+            <div style={{ fontSize: 12, color: theme.textFaint, marginBottom: 16, lineHeight: 1.5 }}>
+              Ask your host for their room code, or scan their QR code.
             </div>
-            {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
-            <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }}
-              onClick={() => { if (!roomCode.trim()) { setErr("Enter the room code first"); return; } setErr(""); setMode("login"); }}>
-              I already have an account
-            </button>
-            <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }}
-              onClick={() => { if (!roomCode.trim()) { setErr("Enter the room code first"); return; } setErr(""); setMode("signup"); }}>
-              I'm new — create an account
-            </button>
-            <button style={S.linkBtn} onClick={onBack}>← Back</button>
+
+            <div style={{ ...S.flex("column", "stretch"), gap: 12, textAlign: "left" }}>
+              <button style={{
+                ...S.btn, width: "100%", padding: "14px 18px",
+                background: theme.accentBg, border: `1px solid ${theme.accentBorder}`, color: theme.accentLight,
+              }} onClick={() => setShowScanner(true)}>
+                📷 Scan QR Code
+              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1, height: 1, background: theme.divider }} />
+                <span style={{ fontSize: 11, color: theme.textFaint }}>or enter manually</span>
+                <div style={{ flex: 1, height: 1, background: theme.divider }} />
+              </div>
+
+              <div>
+                <label style={S.fieldLabel}>Room code</label>
+                <input style={{ ...S.input, fontFamily: "monospace", fontWeight: 700, letterSpacing: "0.05em" }}
+                  value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} placeholder="e.g. AB3DKX" maxLength={10} />
+              </div>
+              {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
+              <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }}
+                onClick={() => { if (!roomCode.trim()) { setErr("Enter the room code first"); return; } setErr(""); setMode("login"); }}>
+                I already have an account
+              </button>
+              <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }}
+                onClick={() => { if (!roomCode.trim()) { setErr("Enter the room code first"); return; } setErr(""); setMode("signup"); }}>
+                I'm new — create an account
+              </button>
+              <button style={S.linkBtn} onClick={onBack}>← Back</button>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 

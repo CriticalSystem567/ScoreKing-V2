@@ -180,6 +180,11 @@ export async function leaveCurrentRoom(username) {
 }
 
 /* ─── ROOM PARTICIPANTS (people currently sitting in a given room) ─── */
+export async function checkIfStillInRoom(username, roomId) {
+  const { data } = await supabase.from("players").select("current_room_id").eq("username", norm(username)).maybeSingle();
+  return data?.current_room_id === roomId;
+}
+
 export async function listRoomParticipants(roomId, hostUsername) {
   const { data, error } = await supabase
     .from("players").select("*")

@@ -9,6 +9,7 @@ import {
   listRoomParticipants, removeParticipant, joinRoomByCode, leaveCurrentRoom,
   changeName, changePassword, changeAvatar, uploadAvatarPhoto,
   recordFinishedGame, getMyGameHistory, getMyOverallStats, getAdminGameHistory,
+  checkIfStillInRoom,
 } from "../db.js";
 
 const POLL_MS = 3000;
@@ -63,6 +64,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [showHelpTip, setShowHelpTip] = useState(true);
+  const [wasKicked, setWasKicked] = useState(false); // true if admin removed me from the room
   const pollRef = useRef(null);
 
   const showToast = (msg) => {
@@ -135,6 +137,18 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     supabase.from("rooms").select("admin_username").eq("id", roomId).maybeSingle()
       .then(({ data }) => { if (data) setRoomHostUsername(data.admin_username); });
   }, [isOwnView, roomId, session.username]);
+
+  /* ── kick detection: non-hosts poll to see if they've been removed from the room ── */
+  useEffect(() => {
+    if (isHost || !roomId) return;
+    const check = async () => {
+      const stillIn = await checkIfStillInRoom(session.username, roomId);
+      if (!stillIn) setWasKicked(true);
+    };
+    check();
+    const iv = setInterval(check, POLL_MS);
+    return () => clearInterval(iv);
+  }, [isHost, roomId, session.username]);
 
   /* ── participants currently in this room (only meaningful when I'm the host) ── */
   const refreshParticipants = useCallback(async () => {
@@ -466,6 +480,46 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
           <div style={{ fontSize: 13, color: theme.textDim, marginBottom: 24 }}>
             {roomOwner} has temporarily closed this room. Your spot, score history, and account are all safe —
             check back once they reopen it.
+          </div>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onLogout}>↩ Logout</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Non-hosts who've been kicked (removed from the room via ✕) see a clear message.
+  if (!isHost && wasKicked) {
+    return (
+      <div style={S.screen}>
+        <div style={S.loginBox}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🚫</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 8 }}>You've been removed</div>
+          <div style={{ fontSize: 13, color: theme.textDim, marginBottom: 24 }}>
+            {roomOwner || "The host"} has removed you from this room. Your account and personal history are safe.
+            You can join a different room anytime.
+          </div>
+          <button style={{ ...S.btn, ...S.btnAccent, width: "100%" }} onClick={onBackToChoice}>↩ Back to Rooms</button>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%", marginTop: 8 }} onClick={onLogout}>Logout</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Non-hosts who are NOT in the current game's active player list
+  // (unchecked in setup) are blocked from seeing the live scoreboard.
+  const isInActiveGame = !isHost && game.gameStarted &&
+    game.players.some(p => p.username === session.username);
+  const isSpectatorBlocked = !isHost && game.gameStarted && !isInActiveGame;
+
+  if (isSpectatorBlocked) {
+    return (
+      <div style={S.screen}>
+        <div style={S.loginBox}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>⏳</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 8 }}>You're not in this game</div>
+          <div style={{ fontSize: 13, color: theme.textDim, marginBottom: 24 }}>
+            {roomOwner || "The host"} hasn't selected you for the current game.
+            Sit tight — you'll be able to see the scoreboard once the next game starts and you're added.
           </div>
           <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={onLogout}>↩ Logout</button>
         </div>

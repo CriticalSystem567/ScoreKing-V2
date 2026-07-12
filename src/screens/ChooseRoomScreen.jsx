@@ -43,12 +43,16 @@ export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoine
     onEnterJoinedRoom(res.roomId);
   };
 
-  const handleScan = (scannedCode) => {
+  const handleScan = async (scannedCode) => {
     setShowScanner(false);
     setRoomCode(scannedCode);
     setErr("");
-    // Give React one tick to update before submitting, so state is consistent
-    setTimeout(() => submitJoin(scannedCode), 50);
+    setBusy(true);
+    const res = await joinRoomByCode(session.username, scannedCode);
+    setBusy(false);
+    if (!res.ok) { setErr(res.error); return; }
+    onUpdateSession?.({});
+    onEnterJoinedRoom(res.roomId);
   };
 
   if (mode === "menu") {

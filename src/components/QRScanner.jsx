@@ -1,90 +1,126 @@
 import { useEffect, useRef, useState } from "react";
 
-const SCANNER_ID = "scoreking-qr-scanner";
-
 /**
  * Camera-based QR code scanner.
- * Calls onScan(text) when a QR code is successfully read.
- * Calls onClose() when the user dismisses it.
+ * Uses html5-qrcode but with proper lifecycle management to avoid
+ * the blank-screen issue caused by DOM element conflicts.
  */
 export default function QRScanner({ onScan, onClose }) {
-  const [err, setErr] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("starting"); // starting | scanning | error
+  const [errMsg, setErrMsg] = useState("");
   const scannerRef = useRef(null);
+  const mountedRef = useRef(true);    // tracks if component is still mounted
+  const scannedRef = useRef(false);   // prevents onScan firing more than once
+  const containerId = "sk-qr-container";
 
   useEffect(() => {
-    let scanner = null;
+    mountedRef.current = true;
+    scannedRef.current = false;
 
     import("html5-qrcode").then(({ Html5Qrcode }) => {
-      scanner = new Html5Qrcode(SCANNER_ID);
-      scannerRef.current = scanner;
+      if (!mountedRef.current) return;
 
-      scanner.start(
-        { facingMode: "environment" }, // rear camera
-        { fps: 10, qrbox: { width: 220, height: 220 } },
+      const qr = new Html5Qrcode(containerId);
+      scannerRef.current = qr;
+
+      qr.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 200, height: 200 } },
         (decodedText) => {
-          // Try to extract a 6-char alphanumeric room code from whatever was scanned.
-          // The QR encodes just the room code directly (uppercase), but handle
-          // lowercase and longer strings defensively.
+          // Guard against firing multiple times for the same scan
+          if (scannedRef.current) return;
+          scannedRef.current = true;
+
           const clean = decodedText.trim().toUpperCase();
           const match = clean.match(/[A-Z0-9]{6}/);
           const code = match ? match[0] : clean;
 
-          // Stop first, then notify parent — avoids setState-after-unmount issues
-          scanner.stop()
-            .catch(() => {})
-            .finally(() => { onScan(code); });
+          // Stop the scanner, then call onScan — component stays mounted
+          // until parent decides to remove it (after onScan fires)
+          qr.stop().catch(() => {}).finally(() => {
+            if (mountedRef.current) onScan(code);
+          });
         },
-        () => {} // ignore per-frame decode errors (normal during scanning)
+        () => {} // per-frame error, ignore
       ).then(() => {
-        setLoading(false);
+        if (mountedRef.current) setStatus("scanning");
       }).catch((e) => {
-        console.error(e);
-        setErr("Camera access denied or not available. Enter the room code manually.");
-        setLoading(false);
+        console.error("QR start error:", e);
+        if (mountedRef.current) {
+          setStatus("error");
+          setErrMsg("Camera not available. Use the room code instead.");
+        }
       });
     }).catch(() => {
-      setErr("QR scanner not available. Enter the room code manually.");
-      setLoading(false);
+      if (mountedRef.current) {
+        setStatus("error");
+        setErrMsg("QR scanner failed to load. Use the room code instead.");
+      }
     });
 
     return () => {
+      mountedRef.current = false;
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {});
       }
     };
   }, []);
 
+  const handleCancel = () => {
+    if (scannerRef.current) scannerRef.current.stop().catch(() => {});
+    onClose();
+  };
+
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 9999,
+      position: "fixed", inset: 0, background: "rgba(0,0,0,.95)", zIndex: 9999,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: 24,
     }}>
-      <div style={{ color: "#f0f0ff", fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
+      <div style={{ color: "#f0f0ff", fontSize: 17, fontWeight: 700, marginBottom: 20 }}>
         📷 Scan Room QR Code
       </div>
 
-      {loading && !err && (
+      {status === "starting" && (
         <div style={{ color: "#9999bb", fontSize: 13, marginBottom: 16 }}>Starting camera…</div>
       )}
 
-      {err ? (
-        <div style={{ color: "#ff5c5c", fontSize: 13, textAlign: "center", marginBottom: 16, maxWidth: 280 }}>{err}</div>
+      {status === "error" ? (
+        <div style={{ color: "#ff5c5c", fontSize: 14, textAlign: "center", maxWidth: 280, lineHeight: 1.6, marginBottom: 20 }}>
+          {errMsg}
+        </div>
       ) : (
-        <div id={SCANNER_ID} style={{ width: 280, height: 280, borderRadius: 16, overflow: "hidden", background: "#000" }} />
+        /* Always render the container div so html5-qrcode can find it */
+        <div style={{ position: "relative", width: 260, height: 260 }}>
+          <div
+            id={containerId}
+            style={{
+              width: 260, height: 260, borderRadius: 16,
+              overflow: "hidden", background: "#111",
+              opacity: status === "scanning" ? 1 : 0,
+              transition: "opacity 0.3s",
+            }}
+          />
+          {status === "starting" && (
+            <div style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center",
+              justifyContent: "center", color: "#6b6b8a", fontSize: 13,
+            }}>
+              Loading…
+            </div>
+          )}
+        </div>
       )}
 
-      <div style={{ fontSize: 12, color: "#6b6b8a", marginTop: 12, textAlign: "center" }}>
-        Point your camera at the host's QR code
-      </div>
+      {status === "scanning" && (
+        <div style={{ fontSize: 12, color: "#6b6b8a", marginTop: 14, textAlign: "center" }}>
+          Point your camera at the host's QR code
+        </div>
+      )}
 
-      <button onClick={() => {
-        if (scannerRef.current) scannerRef.current.stop().catch(() => {});
-        onClose();
-      }} style={{
-        marginTop: 20, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)",
-        color: "#f0f0ff", borderRadius: 10, padding: "12px 28px", fontSize: 14, cursor: "pointer",
+      <button onClick={handleCancel} style={{
+        marginTop: 24, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)",
+        color: "#f0f0ff", borderRadius: 10, padding: "12px 32px", fontSize: 14, cursor: "pointer",
         fontFamily: "inherit", fontWeight: 600,
       }}>
         Cancel

@@ -23,14 +23,19 @@ export default function QRScanner({ onScan, onClose }) {
         { facingMode: "environment" }, // rear camera
         { fps: 10, qrbox: { width: 220, height: 220 } },
         (decodedText) => {
-          // Extract just the room code — QR might encode the full join URL or just the code
-          // We'll try to extract a 6-char alphanumeric code from whatever was scanned.
-          const match = decodedText.match(/[A-Z0-9]{6}/);
-          const code = match ? match[0] : decodedText.trim().toUpperCase();
-          scanner.stop().catch(() => {});
-          onScan(code);
+          // Try to extract a 6-char alphanumeric room code from whatever was scanned.
+          // The QR encodes just the room code directly (uppercase), but handle
+          // lowercase and longer strings defensively.
+          const clean = decodedText.trim().toUpperCase();
+          const match = clean.match(/[A-Z0-9]{6}/);
+          const code = match ? match[0] : clean;
+
+          // Stop first, then notify parent — avoids setState-after-unmount issues
+          scanner.stop()
+            .catch(() => {})
+            .finally(() => { onScan(code); });
         },
-        () => {} // ignore per-frame errors (normal during scanning)
+        () => {} // ignore per-frame decode errors (normal during scanning)
       ).then(() => {
         setLoading(false);
       }).catch((e) => {

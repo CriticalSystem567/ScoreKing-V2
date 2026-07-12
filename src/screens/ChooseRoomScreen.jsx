@@ -46,8 +46,9 @@ export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoine
   const handleScan = (scannedCode) => {
     setShowScanner(false);
     setRoomCode(scannedCode);
-    // Auto-submit immediately after a successful scan
-    submitJoin(scannedCode);
+    setErr("");
+    // Give React one tick to update before submitting, so state is consistent
+    setTimeout(() => submitJoin(scannedCode), 50);
   };
 
   if (mode === "menu") {

@@ -141,6 +141,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
 
   /* ── kick detection: non-hosts poll to see if they've been removed from the room ── */
   useEffect(() => {
+    setWasKicked(false); // always reset when entering a new room
     if (isHost || !roomId) return;
     const check = async () => {
       const stillIn = await checkIfStillInRoom(session.username, roomId);

@@ -1,79 +1,112 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Camera-based QR code scanner.
- * Uses html5-qrcode but with proper lifecycle management to avoid
- * the blank-screen issue caused by DOM element conflicts.
+ * QR Scanner using native browser camera API + jsQR for decoding.
+ * Avoids html5-qrcode's DOM management issues entirely.
+ * jsQR is loaded from CDN via a script tag.
  */
+
+function loadJsQR() {
+  return new Promise((resolve, reject) => {
+    if (window.jsQR) { resolve(window.jsQR); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+    script.onload = () => resolve(window.jsQR);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
 export default function QRScanner({ onScan, onClose }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+  const streamRef = useRef(null);
+  const mountedRef = useRef(true);
   const [status, setStatus] = useState("starting"); // starting | scanning | error
   const [errMsg, setErrMsg] = useState("");
-  const scannerRef = useRef(null);
-  const mountedRef = useRef(true);    // tracks if component is still mounted
-  const scannedRef = useRef(false);   // prevents onScan firing more than once
-  const containerId = "sk-qr-container";
 
   useEffect(() => {
     mountedRef.current = true;
-    scannedRef.current = false;
+    let jsQR = null;
 
-    import("html5-qrcode").then(({ Html5Qrcode }) => {
+    const stop = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    };
+
+    const tick = () => {
       if (!mountedRef.current) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const result = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+      if (result) {
+        const clean = result.data.trim().toUpperCase();
+        const match = clean.match(/[A-Z0-9]{6}/);
+        const code = match ? match[0] : clean;
+        stop();
+        if (mountedRef.current) onScan(code);
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
 
-      const qr = new Html5Qrcode(containerId);
-      scannerRef.current = qr;
-
-      qr.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 200, height: 200 } },
-        (decodedText) => {
-          // Guard against firing multiple times for the same scan
-          if (scannedRef.current) return;
-          scannedRef.current = true;
-
-          const clean = decodedText.trim().toUpperCase();
-          const match = clean.match(/[A-Z0-9]{6}/);
-          const code = match ? match[0] : clean;
-
-          // Stop the scanner, then call onScan — component stays mounted
-          // until parent decides to remove it (after onScan fires)
-          qr.stop().catch(() => {}).finally(() => {
-            if (mountedRef.current) onScan(code);
-          });
-        },
-        () => {} // per-frame error, ignore
-      ).then(() => {
+    const start = async () => {
+      try {
+        jsQR = await loadJsQR();
+        if (!mountedRef.current) return;
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        if (!mountedRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
         if (mountedRef.current) setStatus("scanning");
-      }).catch((e) => {
-        console.error("QR start error:", e);
+        rafRef.current = requestAnimationFrame(tick);
+      } catch (e) {
+        console.error("QR camera error:", e);
         if (mountedRef.current) {
           setStatus("error");
-          setErrMsg("Camera not available. Use the room code instead.");
+          setErrMsg(
+            e.name === "NotAllowedError"
+              ? "Camera permission denied. Allow camera access and try again."
+              : "Camera not available on this device. Use the room code instead."
+          );
         }
-      });
-    }).catch(() => {
-      if (mountedRef.current) {
-        setStatus("error");
-        setErrMsg("QR scanner failed to load. Use the room code instead.");
       }
-    });
+    };
+
+    start();
 
     return () => {
       mountedRef.current = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-      }
+      stop();
     };
   }, []);
 
   const handleCancel = () => {
-    if (scannerRef.current) scannerRef.current.stop().catch(() => {});
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     onClose();
   };
 
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,.95)", zIndex: 9999,
+      position: "fixed", inset: 0, background: "rgba(0,0,0,.96)", zIndex: 9999,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: 24,
     }}>
@@ -90,36 +123,38 @@ export default function QRScanner({ onScan, onClose }) {
           {errMsg}
         </div>
       ) : (
-        /* Always render the container div so html5-qrcode can find it */
-        <div style={{ position: "relative", width: 260, height: 260 }}>
-          <div
-            id={containerId}
-            style={{
-              width: 260, height: 260, borderRadius: 16,
-              overflow: "hidden", background: "#111",
-              opacity: status === "scanning" ? 1 : 0,
-              transition: "opacity 0.3s",
-            }}
+        <div style={{ position: "relative", width: 260, height: 260, borderRadius: 16, overflow: "hidden", background: "#000" }}>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
-          {status === "starting" && (
+          {/* scanning crosshair overlay */}
+          {status === "scanning" && (
             <div style={{
-              position: "absolute", inset: 0, display: "flex", alignItems: "center",
-              justifyContent: "center", color: "#6b6b8a", fontSize: 13,
+              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              Loading…
+              <div style={{
+                width: 180, height: 180, border: "2px solid rgba(124,109,250,.8)", borderRadius: 12,
+                boxShadow: "0 0 0 2000px rgba(0,0,0,.35)",
+              }} />
             </div>
           )}
         </div>
       )}
 
+      {/* Hidden canvas used only for pixel extraction — never displayed */}
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
       {status === "scanning" && (
-        <div style={{ fontSize: 12, color: "#6b6b8a", marginTop: 14, textAlign: "center" }}>
+        <div style={{ fontSize: 12, color: "#9999bb", marginTop: 14, textAlign: "center" }}>
           Point your camera at the host's QR code
         </div>
       )}
 
       <button onClick={handleCancel} style={{
-        marginTop: 24, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)",
+        marginTop: 24, background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.2)",
         color: "#f0f0ff", borderRadius: 10, padding: "12px 32px", fontSize: 14, cursor: "pointer",
         fontFamily: "inherit", fontWeight: 600,
       }}>

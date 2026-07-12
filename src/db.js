@@ -182,7 +182,9 @@ export async function leaveCurrentRoom(username) {
 /* ─── ROOM PARTICIPANTS (people currently sitting in a given room) ─── */
 export async function checkIfStillInRoom(username, roomId) {
   const { data } = await supabase.from("players").select("current_room_id").eq("username", norm(username)).maybeSingle();
-  return data?.current_room_id === roomId;
+  if (!data) return false;
+  // Coerce both to numbers to avoid string/number === comparison mismatch
+  return Number(data.current_room_id) === Number(roomId);
 }
 
 export async function listRoomParticipants(roomId, hostUsername) {

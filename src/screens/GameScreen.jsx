@@ -143,13 +143,21 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
   useEffect(() => {
     setWasKicked(false); // always reset when entering a new room
     if (isHost || !roomId) return;
+    let intervalId = null;
     const check = async () => {
       const stillIn = await checkIfStillInRoom(session.username, roomId);
       if (!stillIn) setWasKicked(true);
     };
-    check();
-    const iv = setInterval(check, POLL_MS);
-    return () => clearInterval(iv);
+    // Delay the first check by 2s — gives the DB time to write current_room_id
+    // before we read it back, preventing a false "kicked" on fresh joins.
+    const delayId = setTimeout(() => {
+      check();
+      intervalId = setInterval(check, POLL_MS);
+    }, 2000);
+    return () => {
+      clearTimeout(delayId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [isHost, roomId, session.username]);
 
   /* ── participants currently in this room (only meaningful when I'm the host) ── */

@@ -32,6 +32,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
   const [roundInputs, setRoundInputs] = useState({});
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("all");
   const [tableView, setTableView] = useState(false);
@@ -197,6 +198,21 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     const iv = setInterval(refreshParticipants, POLL_MS);
     return () => clearInterval(iv);
   }, [isHost, roomId, refreshParticipants]);
+
+  /* ── manual refresh: re-syncs score/game state (and participants, for the
+     host) on demand — an alternative to reloading the whole page, which
+     would drop the session and log the person out ── */
+  const handleManualRefresh = useCallback(async () => {
+    if (manualRefreshing) return;
+    setManualRefreshing(true);
+    try {
+      await fetchGame();
+      if (isHost) await refreshParticipants();
+      showToast("🔄 Refreshed");
+    } finally {
+      setManualRefreshing(false);
+    }
+  }, [manualRefreshing, fetchGame, isHost, refreshParticipants]);
 
   /* ── push game state ── */
   const pushGame = async (newG) => {
@@ -869,12 +885,18 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
             {newRoomBusy ? "Creating…" : "🆕 New Room"}
           </button>
           <button style={{ ...S.btn, ...S.btnGhost }} onClick={handleExport}>⬇ Export CSV</button>
+          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
+            {manualRefreshing ? "Refreshing…" : "🔄 Refresh Score"}
+          </button>
         </div>
       )}
 
       {!isHost && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowHistory(v => !v)}>📊 {showHistory ? "Hide" : "View"} Round History</button>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
+            {manualRefreshing ? "Refreshing…" : "🔄 Refresh Score"}
+          </button>
           <div style={{ textAlign: "center", color: theme.textFaint, fontSize: 13, padding: "4px 0" }}>
             🔴 Live · Auto-refreshes every {POLL_MS / 1000}s
           </div>

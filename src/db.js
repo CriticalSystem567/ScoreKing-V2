@@ -181,7 +181,11 @@ export async function leaveCurrentRoom(username) {
 
 /* ─── ROOM PARTICIPANTS (people currently sitting in a given room) ─── */
 export async function checkIfStillInRoom(username, roomId) {
-  const { data } = await supabase.from("players").select("current_room_id").eq("username", norm(username)).maybeSingle();
+  const { data, error } = await supabase.from("players").select("current_room_id").eq("username", norm(username)).maybeSingle();
+  // On a network/query error (e.g. connection not yet back after the phone's
+  // screen was locked), we DON'T know the real state — return null so the
+  // caller treats this as "unknown" rather than "kicked".
+  if (error) return null;
   if (!data) return false;
   // Coerce both to numbers to avoid string/number === comparison mismatch
   return Number(data.current_room_id) === Number(roomId);

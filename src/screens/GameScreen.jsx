@@ -144,9 +144,23 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     setWasKicked(false); // always reset when entering a new room
     if (isHost || !roomId) return;
     let intervalId = null;
+    let missCount = 0; // consecutive confirmed "not in room" results
     const check = async () => {
       const stillIn = await checkIfStillInRoom(session.username, roomId);
-      if (!stillIn) setWasKicked(true);
+      if (stillIn === null) {
+        // Query failed (e.g. network still reconnecting after the phone's
+        // screen was locked) — we don't know the real state, so don't count
+        // it as evidence either way.
+        return;
+      }
+      if (stillIn) {
+        missCount = 0;
+        return;
+      }
+      // Require two consecutive confirmed misses before declaring a kick,
+      // so a single transient/racy read can't falsely boot the player.
+      missCount += 1;
+      if (missCount >= 2) setWasKicked(true);
     };
     // Delay the first check by 2s — gives the DB time to write current_room_id
     // before we read it back, preventing a false "kicked" on fresh joins.
@@ -154,9 +168,19 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       check();
       intervalId = setInterval(check, POLL_MS);
     }, 2000);
+    // Re-check as soon as the tab/screen becomes visible again, giving the
+    // network a moment to reconnect first, so we don't judge on a stale poll
+    // that was queued up while the screen was locked.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        setTimeout(check, 1000);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearTimeout(delayId);
       if (intervalId) clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [isHost, roomId, session.username]);
 

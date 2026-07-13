@@ -11,7 +11,6 @@ import ChooseRoomScreen from "./screens/ChooseRoomScreen.jsx";
 import JoinRoomScreen from "./screens/JoinRoomScreen.jsx";
 import SuperAdminScreen from "./screens/SuperAdminScreen.jsx";
 import GameScreen from "./screens/GameScreen.jsx";
-import InstallPrompt from "./components/InstallPrompt.jsx";
 
 function getSuperParam() {
   try {
@@ -23,6 +22,28 @@ function getSuperParam() {
 export default function App() {
   const [screen, setScreen] = useState("landing");
   const [aboutSeen, setAboutSeen] = useState(false);
+  // The browser only fires "beforeinstallprompt" once, and only if we call
+  // preventDefault() on it synchronously — otherwise Chrome shows its own
+  // native mini-infobar immediately. So we have to listen for it globally,
+  // from the moment the app loads, regardless of which screen is showing.
+  // We just hang on to the event here and only ever *display* our own
+  // install card later, on the web login screen (see LoginScreen /
+  // InstallPrompt) — never at the welcome/landing screen.
+  const [installEvent, setInstallEvent] = useState(null);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator.standalone === true;
+    if (standalone) return;
+
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallEvent(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
   // session: { username, name, avatar }
   const [session, setSession] = useState(null);
   // viewMode: whose room is currently active — "own" (I host it) or "joined" (someone else's)
@@ -102,6 +123,8 @@ export default function App() {
           onBack={() => setScreen("landing")}
           onForgot={() => setScreen("forgot")}
           onDone={(s) => setSession(s)}
+          installEvent={installEvent}
+          onInstallHandled={() => setInstallEvent(null)}
         />
       );
     case "forgot":
@@ -119,10 +142,5 @@ export default function App() {
   }
   };
 
-  return (
-    <>
-      {renderScreen()}
-      <InstallPrompt />
-    </>
-  );
+  return renderScreen();
 }

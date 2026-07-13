@@ -2,12 +2,24 @@ import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { login } from "../db.js";
+import InstallPrompt from "../components/InstallPrompt.jsx";
 
-export default function LoginScreen({ onBack, onForgot, onDone }) {
+const REMEMBER_KEY = "sk_remembered_login";
+
+function loadRememberedLogin() {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export default function LoginScreen({ onBack, onForgot, onDone, installEvent, onInstallHandled }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const saved = loadRememberedLogin();
+  const [username, setUsername] = useState(saved?.username || "");
+  const [password, setPassword] = useState(saved?.password || "");
+  const [rememberMe, setRememberMe] = useState(!!saved);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -18,6 +30,14 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
     const res = await login(username.trim(), password);
     setBusy(false);
     if (!res.ok) { setErr(res.error); return; }
+
+    // Save (or clear) the remembered credentials based on the checkbox,
+    // only once login actually succeeds.
+    if (rememberMe) {
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: username.trim(), password }));
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
 
     const p = res.player;
     onDone({ username: p.username, name: p.name, avatar: p.avatar });
@@ -43,6 +63,17 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
             <input style={S.input} type="password" value={password} onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === "Enter" && submit()} />
           </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.textFaint, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={{ width: 16, height: 16 }}
+            />
+            Remember my login on this device
+          </label>
+
           {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
           <button style={{ ...S.btn, ...S.btnAccent, width: "100%", marginTop: 6 }} onClick={submit} disabled={busy}>
             {busy ? "Logging in…" : "Log In"}
@@ -50,6 +81,8 @@ export default function LoginScreen({ onBack, onForgot, onDone }) {
           <button style={S.linkBtn} onClick={onForgot}>Forgot password?</button>
           <button style={S.linkBtn} onClick={onBack}>← Back</button>
         </div>
+
+        <InstallPrompt installEvent={installEvent} onInstallHandled={onInstallHandled} />
       </div>
     </div>
   );

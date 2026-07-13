@@ -33,6 +33,8 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const lastSyncRef = useRef(null);
+  useEffect(() => { lastSyncRef.current = lastSync; }, [lastSync]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("all");
   const [tableView, setTableView] = useState(false);
@@ -149,19 +151,24 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     const check = async () => {
       const stillIn = await checkIfStillInRoom(session.username, roomId);
       if (stillIn === null) {
-        // Query failed (e.g. network still reconnecting after the phone's
-        // screen was locked) — we don't know the real state, so don't count
-        // it as evidence either way.
+        // Query failed outright — definitely not trustworthy evidence.
         return;
       }
       if (stillIn) {
         missCount = 0;
         return;
       }
-      // Require two consecutive confirmed misses before declaring a kick,
-      // so a single transient/racy read can't falsely boot the player.
+      // A "false" reply is only trusted if the main score sync has ALSO
+      // succeeded very recently — proving the connection is genuinely
+      // healthy right now, not just that this one request happened to get
+      // a response while the phone was still reconnecting after a lock.
+      const syncedRecently = lastSyncRef.current && (Date.now() - lastSyncRef.current.getTime() < 8000);
+      if (!syncedRecently) return;
+      // Require three consecutive confirmed, trusted misses before
+      // declaring a kick, so a racy read right after waking from screen
+      // lock can't falsely boot the player.
       missCount += 1;
-      if (missCount >= 2) setWasKicked(true);
+      if (missCount >= 3) setWasKicked(true);
     };
     // Delay the first check by 2s — gives the DB time to write current_room_id
     // before we read it back, preventing a false "kicked" on fresh joins.
@@ -169,12 +176,13 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       check();
       intervalId = setInterval(check, POLL_MS);
     }, 2000);
-    // Re-check as soon as the tab/screen becomes visible again, giving the
-    // network a moment to reconnect first, so we don't judge on a stale poll
-    // that was queued up while the screen was locked.
+    // Re-check as soon as the tab/screen becomes visible again, with a
+    // longer grace delay so mobile networks have real time to reconnect
+    // before we trust anything a check comes back with.
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        setTimeout(check, 1000);
+        missCount = 0; // don't carry over any pre-lock misses into the fresh wake-up
+        setTimeout(check, 3000);
       }
     };
     document.addEventListener("visibilitychange", onVisible);

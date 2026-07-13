@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTheme } from "../ThemeContext.jsx";
 import { getStyles } from "../styles.jsx";
+import Toggle from "./Toggle.jsx";
 
 const DISMISS_KEY = "sk_install_prompt_dismissed";
 
@@ -19,8 +20,15 @@ const DISMISS_KEY = "sk_install_prompt_dismissed";
  * "Remember my choice — don't ask again" here only affects whether this
  * install card keeps showing on future visits. It's unrelated to, and
  * separate from, the "remember my login" checkbox on the login form.
+ *
+ * iOS Safari never fires `beforeinstallprompt` at all (Apple doesn't
+ * support it), so relying on that event alone would mean iPhone/iPad web
+ * users never see an install option. `showIOSInstructions` is passed in
+ * from App.jsx for that one case: browser is Safari-on-iOS AND the app
+ * isn't already running standalone. It renders a "how to" version of this
+ * same card instead of a live Install button (iOS has no JS install API).
  */
-export default function InstallPrompt({ installEvent, onInstallHandled }) {
+export default function InstallPrompt({ installEvent, onInstallHandled, showIOSInstructions }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
   const [remember, setRemember] = useState(true);
@@ -28,7 +36,7 @@ export default function InstallPrompt({ installEvent, onInstallHandled }) {
     () => localStorage.getItem(DISMISS_KEY) === "1"
   );
 
-  if (dismissed || !installEvent) return null;
+  if (dismissed || (!installEvent && !showIOSInstructions)) return null;
 
   const closeAndMaybeRemember = () => {
     if (remember) localStorage.setItem(DISMISS_KEY, "1");
@@ -67,24 +75,50 @@ export default function InstallPrompt({ installEvent, onInstallHandled }) {
         Add it to your home screen for a fullscreen, app-like experience — no browser bar, faster to open.
       </div>
 
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.textFaint, marginBottom: 14, cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={remember}
-          onChange={(e) => setRemember(e.target.checked)}
-          style={{ width: 16, height: 16 }}
-        />
-        Remember my choice — don't ask again
-      </label>
+      {!installEvent && showIOSInstructions && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            fontSize: 12.5,
+            color: theme.textDim,
+            background: theme.surfaceStrong,
+            border: `1px solid ${theme.surfaceBorder}`,
+            borderRadius: 12,
+            padding: "12px 14px",
+            marginBottom: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          <div><b>1.</b> Tap the Share icon <span aria-hidden>⬆️</span> in Safari's toolbar</div>
+          <div><b>2.</b> Scroll down and choose <b>Add to Home Screen</b></div>
+          <div><b>3.</b> Tap <b>Add</b> in the top-right corner</div>
+        </div>
+      )}
 
-      <div style={{ display: "flex", gap: 10 }}>
-        <button style={{ ...S.btn, ...S.btnGhost, flex: 1 }} onClick={handleNotNow}>
-          Not now
-        </button>
-        <button style={{ ...S.btn, ...S.btnAccent, flex: 1 }} onClick={handleInstall}>
-          Install
-        </button>
+      <div style={{ marginBottom: 14 }}>
+        <Toggle
+          checked={remember}
+          onChange={setRemember}
+          label="Remember my choice — don't ask again"
+        />
       </div>
+
+      {installEvent ? (
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={{ ...S.btn, ...S.btnGhost, flex: 1 }} onClick={handleNotNow}>
+            Not now
+          </button>
+          <button style={{ ...S.btn, ...S.btnAccent, flex: 1 }} onClick={handleInstall}>
+            Install
+          </button>
+        </div>
+      ) : (
+        <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleNotNow}>
+          Got it
+        </button>
+      )}
     </div>
   );
 }

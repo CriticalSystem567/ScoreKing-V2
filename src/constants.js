@@ -13,7 +13,7 @@ export const PLAYER_COLORS = [
 export const EMOJIS = ["🎮","🃏","🎲","🏆","🎯","🦁","🐯","🦊","🐺","🦅",
   "🔥","⚡","🌟","💎","🚀","😎","🤴","👸","🧙","🧝"];
 
-export const APP_VERSION = "v3.6.2";
+export const APP_VERSION = "v3.6.3";
 
 export const SECURITY_QUESTIONS = [
   "What's your favorite card game?",

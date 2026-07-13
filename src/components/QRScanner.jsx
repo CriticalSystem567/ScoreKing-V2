@@ -66,56 +66,11 @@ export default function QRScanner({ onScan, onClose }) {
       try {
         jsQR = await loadJsQR();
         if (!mountedRef.current) return;
-
-        // Try to find the main (1x) back camera by label, avoiding the
-        // ultra-wide (0.5x) lens that browsers sometimes default to.
-        let preferredDeviceId = null;
-        try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const backCams = devices.filter(
-            (d) => d.kind === "videoinput" && /back|rear|environment/i.test(d.label)
-          );
-          const nonUltraWide = backCams.find(
-            (d) => !/ultra\s*-?\s*wide|0\.5x|wide angle/i.test(d.label)
-          );
-          if (nonUltraWide) preferredDeviceId = nonUltraWide.deviceId;
-        } catch (enumErr) {
-          // enumerateDevices can fail/return empty labels before permission
-          // is granted on some browsers — just fall back to facingMode.
-        }
-
-        const baseVideoConstraints = preferredDeviceId
-          ? { deviceId: { exact: preferredDeviceId } }
-          : { facingMode: { ideal: "environment" } };
-
-        let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { ...baseVideoConstraints, zoom: { ideal: 1 } },
-          });
-        } catch (constraintErr) {
-          // "zoom" as a getUserMedia constraint isn't supported everywhere;
-          // retry without it.
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: baseVideoConstraints,
-          });
-        }
-
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
         if (!mountedRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
-
-        // Explicitly force 1x zoom via track constraints where supported
-        // (Android Chrome mainly; iOS Safari largely ignores this).
-        try {
-          const [track] = stream.getVideoTracks();
-          const caps = track.getCapabilities ? track.getCapabilities() : null;
-          if (caps && caps.zoom) {
-            const targetZoom = Math.min(Math.max(1, caps.zoom.min), caps.zoom.max);
-            await track.applyConstraints({ advanced: [{ zoom: targetZoom }] });
-          }
-        } catch (zoomErr) {
-          console.warn("Could not force 1x zoom:", zoomErr);
-        }
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play();

@@ -30,21 +30,12 @@ export default function App() {
   // install card later, on the web login screen (see LoginScreen /
   // InstallPrompt) — never at the welcome/landing screen.
   const [installEvent, setInstallEvent] = useState(null);
-  // iOS Safari (and other iOS browsers, which are all Safari under the
-  // hood) never fires "beforeinstallprompt" — Apple doesn't implement it.
-  // So for iOS specifically we fall back to showing manual "Add to Home
-  // Screen" instructions instead of a live install button. Still gated on
-  // the same standalone check, so it correctly disappears once installed.
-  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
     const standalone =
       window.matchMedia?.("(display-mode: standalone)")?.matches ||
       window.navigator.standalone === true;
     if (standalone) return;
-
-    const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
-    if (isIOS) setShowIOSInstructions(true);
 
     const handler = (e) => {
       e.preventDefault();
@@ -134,7 +125,6 @@ export default function App() {
           onDone={(s) => setSession(s)}
           installEvent={installEvent}
           onInstallHandled={() => setInstallEvent(null)}
-          showIOSInstructions={showIOSInstructions}
         />
       );
     case "forgot":

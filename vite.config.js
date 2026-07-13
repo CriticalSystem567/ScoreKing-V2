@@ -8,15 +8,6 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
-      // Without this, the manifest + service worker are only injected into
-      // a production build — `npm run dev` serves plain index.html with no
-      // manifest link and no SW, so the browser never considers the app
-      // "installable" and `beforeinstallprompt` never fires. This makes
-      // installability (and therefore the Install button) work in dev too.
-      devOptions: {
-        enabled: true,
-        type: "module",
-      },
       manifest: {
         name: "ScoreKing",
         short_name: "ScoreKing",

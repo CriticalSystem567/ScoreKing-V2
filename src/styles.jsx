@@ -1,9 +1,38 @@
 /* Styles are generated per-theme via getStyles(theme) — see ThemeContext.jsx.
    Every screen calls `const S = getStyles(theme)` instead of importing a
    static object, so every color updates instantly when the theme toggles. */
+
+/* A repeating, semi-transparent playing-card motif (K, Q, J, A, a joker,
+   and their suits) used as a subtle background texture behind the auth
+   screens. Opacity is baked directly into the SVG (not a separate CSS
+   opacity) so it layers cleanly with backdrop-blurred cards on top of it. */
+function cardPatternBg(color) {
+  const svg = `
+<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'>
+  <g fill='none' stroke='${color}' stroke-width='1.6' opacity='0.05'>
+    <rect x='14' y='18' width='46' height='66' rx='7' transform='rotate(-8 37 51)'/>
+    <rect x='140' y='8' width='46' height='66' rx='7' transform='rotate(9 163 41)'/>
+    <rect x='66' y='118' width='46' height='66' rx='7' transform='rotate(6 89 151)'/>
+    <rect x='148' y='142' width='46' height='66' rx='7' transform='rotate(-11 171 175)'/>
+  </g>
+  <g fill='${color}' opacity='0.07' font-family='Georgia, serif' font-weight='700'>
+    <text x='20' y='38' font-size='17' transform='rotate(-8 37 51)'>K</text>
+    <text x='20' y='60' font-size='17' transform='rotate(-8 37 51)'>♠</text>
+    <text x='146' y='28' font-size='17' transform='rotate(9 163 41)'>Q</text>
+    <text x='146' y='50' font-size='17' transform='rotate(9 163 41)'>♥</text>
+    <text x='72' y='138' font-size='17' transform='rotate(6 89 151)'>J</text>
+    <text x='72' y='160' font-size='17' transform='rotate(6 89 151)'>♣</text>
+    <text x='154' y='162' font-size='17' transform='rotate(-11 171 175)'>A</text>
+    <text x='154' y='184' font-size='17' transform='rotate(-11 171 175)'>♦</text>
+  </g>
+  <text x='90' y='36' font-size='22' opacity='0.05' transform='rotate(15 100 26)'>🃏</text>
+</svg>`.trim();
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 export function getStyles(t) {
   return {
-    screen:      { position:"fixed",inset:0,background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:100,overflowY:"auto" },
+    screen:      { position:"fixed",inset:0,backgroundColor:t.bg,backgroundImage:cardPatternBg(t.text),backgroundRepeat:"repeat",backgroundSize:"240px 240px",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:100,overflowY:"auto" },
     loginBox:    { width:"100%",maxWidth:380,background:t.surface,backdropFilter:"blur(16px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:24,padding:"32px 28px",textAlign:"center",margin:"auto",boxShadow:t.shadow },
     logo:        { fontFamily:"monospace",fontSize:28,fontWeight:700,color:t.accentLight,background:`linear-gradient(135deg,${t.accentLight},${t.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text" },
     logoSub:     { fontSize:11,letterSpacing:".15em",textTransform:"uppercase",color:t.textFaint,marginTop:2,marginBottom:24 },

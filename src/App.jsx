@@ -11,6 +11,7 @@ import ChooseRoomScreen from "./screens/ChooseRoomScreen.jsx";
 import JoinRoomScreen from "./screens/JoinRoomScreen.jsx";
 import SuperAdminScreen from "./screens/SuperAdminScreen.jsx";
 import GameScreen from "./screens/GameScreen.jsx";
+import InstallPrompt from "./components/InstallPrompt.jsx";
 
 function getSuperParam() {
   try {
@@ -46,6 +47,7 @@ export default function App() {
   // the choice screen rather than logging all the way out.
   const backToChoice = () => { setActiveRoomId(null); setViewMode(null); };
 
+  const renderScreen = () => {
   if (screen === "superadmin") return <SuperAdminScreen onExit={goLanding} />;
 
   // Logged in, but no room actively open yet: always show the choice screen.
@@ -115,4 +117,12 @@ export default function App() {
         />
       );
   }
+  };
+
+  return (
+    <>
+      {renderScreen()}
+      <InstallPrompt />
+    </>
+  );
 }

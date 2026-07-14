@@ -3,6 +3,7 @@ import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { login } from "../db.js";
 import InstallPrompt from "../components/InstallPrompt.jsx";
+import Toggle from "../components/Toggle.jsx";
 
 const REMEMBER_KEY = "sk_remembered_login";
 
@@ -13,7 +14,7 @@ function loadRememberedLogin() {
   } catch { return null; }
 }
 
-export default function LoginScreen({ onBack, onForgot, onDone, installEvent, onInstallHandled }) {
+export default function LoginScreen({ onBack, onForgot, onDone, installEvent, onInstallHandled, showIOSInstructions }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
   const saved = loadRememberedLogin();
@@ -64,15 +65,12 @@ export default function LoginScreen({ onBack, onForgot, onDone, installEvent, on
               onKeyDown={e => e.key === "Enter" && submit()} />
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.textFaint, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              style={{ width: 16, height: 16 }}
-            />
-            Remember my login on this device
-          </label>
+          <Toggle
+            checked={rememberMe}
+            onChange={setRememberMe}
+            icon="🔒"
+            label="Remember my login on this device"
+          />
 
           {err && <div style={{ color: theme.red, fontSize: 13 }}>{err}</div>}
           <button style={{ ...S.btn, ...S.btnAccent, width: "100%", marginTop: 6 }} onClick={submit} disabled={busy}>
@@ -82,7 +80,7 @@ export default function LoginScreen({ onBack, onForgot, onDone, installEvent, on
           <button style={S.linkBtn} onClick={onBack}>← Back</button>
         </div>
 
-        <InstallPrompt installEvent={installEvent} onInstallHandled={onInstallHandled} />
+        <InstallPrompt installEvent={installEvent} onInstallHandled={onInstallHandled} showIOSInstructions={showIOSInstructions} />
       </div>
     </div>
   );

@@ -3,7 +3,6 @@ import { SUPER_ADMIN_PASSPHRASE } from "./constants.js";
 
 import AboutScreen from "./screens/AboutScreen.jsx";
 import HowItWorksScreen from "./screens/HowItWorksScreen.jsx";
-import LearnToPlayScreen from "./screens/LearnToPlayScreen.jsx";
 import LandingScreen from "./screens/LandingScreen.jsx";
 import SignupScreen from "./screens/SignupScreen.jsx";
 import LoginScreen from "./screens/LoginScreen.jsx";
@@ -118,8 +117,6 @@ export default function App() {
       return <AboutScreen onClose={() => setScreen("landing")} showCloseAsContinue={false} />;
     case "howItWorks":
       return <HowItWorksScreen onClose={() => setScreen("landing")} />;
-    case "learnToPlay":
-      return <LearnToPlayScreen onClose={() => setScreen("landing")} />;
     case "quickJoin":
       return (
         <JoinRoomScreen
@@ -149,7 +146,6 @@ export default function App() {
           onSignup={() => setScreen("signup")}
           onAbout={() => setScreen("about")}
           onHowItWorks={() => setScreen("howItWorks")}
-          onLearnToPlay={() => setScreen("learnToPlay")}
           onQuickJoin={() => setScreen("quickJoin")}
         />
       );

@@ -5,6 +5,7 @@ import { useTheme } from "../ThemeContext.jsx";
 import { PLAYER_COLORS, DEFAULT_GAME, buildGameCSV, downloadCSV } from "../constants.js";
 import { getZoneJoke, getWinnerLine, getRoundWinLine } from "../jokes.js";
 import QRCodeDisplay from "../components/QRCodeDisplay.jsx";
+import LearnToPlayScreen from "./LearnToPlayScreen.jsx";
 import {
   getRoomGame, setRoomGame, createRoom, setRoomLocked, regenerateRoomCode,
   listRoomParticipants, removeParticipant, joinRoomByCode, leaveCurrentRoom,
@@ -69,6 +70,8 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
 
   const [showHelpTip, setShowHelpTip] = useState(true);
   const [wasKicked, setWasKicked] = useState(false); // true if admin removed me from the room
+  const [showLearnToPlay, setShowLearnToPlay] = useState(false);
+  const [dealerEditOpen, setDealerEditOpen] = useState(false);
   const pollRef = useRef(null);
 
   const showToast = (msg) => {
@@ -285,7 +288,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
 
     const maxScore = (setupMax === "" || +setupMax < 10) ? 200 : +setupMax;
     setSetupMax(maxScore);
-    await pushGame({ ...game, numPlayers: players.length, maxScore, players, dealerIndex: 0, gameStarted: true });
+    await pushGame({ ...game, numPlayers: players.length, maxScore, players, dealerIndex: 0, gameStarted: true, editedRounds: [], dealerLog: {}, dealerChangeUsed: false });
     setRoundInputs({});
     showToast("✓ Game started! Settings are now locked until you reset.");
   };
@@ -341,12 +344,68 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     const active = players.filter(p => !p.eliminated);
     const winner = active.length === 1 ? active[0].name : null;
     const winnerLine = winner ? getWinnerLine(`${roomOwner}-${game.round}-${winner}`) : null;
-    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner, winnerLine, jokes };
+    const dealerLog = { ...(game.dealerLog || {}), [game.round]: dealerIdx };
+    const newG = { ...game, players, round: game.round + 1, history, dealerIndex: nextDealer, winner, winnerLine, jokes, dealerLog };
     await pushGame(newG);
     setRoundInputs({});
     setShowWinner(true);
     showToast(`✅ Round ${game.round} saved! Dealt by ${dealerName}`);
     if (active.length === 0) showToast("All players eliminated!");
+  };
+
+  // Lets the host reopen the most-recently-completed round to fix a
+  // mis-entered score. Allowed exactly ONCE per round — once used, that
+  // round number is permanently marked as edited and can't be reopened
+  // again (a fresh "New Game" resets this).
+  const canEditLastRound =
+    game && game.gameStarted && !game.winner && game.round > 1 &&
+    game.history.some(h => h.round === game.round - 1) &&
+    !(game.editedRounds || []).includes(game.round - 1);
+
+  const editLastRound = () => {
+    if (!canEditLastRound) return;
+    const targetRound = game.round - 1;
+    askConfirm(
+      `Reopen Round ${targetRound} for correction? You can fix the scores and re-save — this can only be done once for this round.`,
+      async () => {
+        const roundEntries = game.history.filter(h => h.round === targetRound);
+        const restoredInputs = {};
+        let players = game.players.map(p => ({ ...p }));
+
+        roundEntries.forEach(h => {
+          const idx = players.findIndex(p => p.name === h.player);
+          if (idx === -1) return;
+          players[idx].total = Math.max(0, players[idx].total - h.added);
+          players[idx].eliminated = false;
+          players[idx].lastAdded = 0;
+          players[idx].roundWon = false;
+          restoredInputs[idx] = String(h.added);
+        });
+
+        const remainingHistory = game.history.filter(h => h.round !== targetRound);
+        const restoredDealerIndex = (game.dealerLog && game.dealerLog[targetRound] !== undefined)
+          ? game.dealerLog[targetRound]
+          : game.dealerIndex;
+        const editedRounds = [...(game.editedRounds || []), targetRound];
+
+        await pushGame({
+          ...game, players, history: remainingHistory, round: targetRound,
+          dealerIndex: restoredDealerIndex, winner: null, winnerLine: null, jokes: {}, editedRounds,
+        });
+        setRoundInputs(restoredInputs);
+        showToast(`✏️ Round ${targetRound} reopened — adjust scores and tap "Add Round" to re-save. This round can't be edited again after that.`);
+      }
+    );
+  };
+
+  // Lets the host override who's currently set as dealer, exactly ONCE per
+  // game — for fixing a mistake, not for repeatedly re-ordering deals.
+  const canChangeDealer = game && game.gameStarted && !game.winner && !game.dealerChangeUsed;
+  const handleChangeDealer = (newIdx) => {
+    setDealerEditOpen(false);
+    if (!canChangeDealer) return;
+    pushGame({ ...game, dealerIndex: newIdx, dealerChangeUsed: true });
+    showToast(`🂠 Dealer changed to ${game.players[newIdx]?.name || "—"}. This can only be done once per game.`);
   };
 
   const newGame = async () => {
@@ -356,7 +415,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       await recordFinishedGame({ adminUsername: roomOwner, game, usernameByPlayerIndex });
     }
     const players = game.players.map(p => ({ ...p, total: 0, lastAdded: 0, eliminated: false }));
-    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, winnerLine: null, jokes: {}, gameStarted: false });
+    await pushGame({ ...game, round: 1, history: [], players, dealerIndex: 0, winner: null, winnerLine: null, jokes: {}, gameStarted: false, editedRounds: [], dealerLog: {}, dealerChangeUsed: false });
     setSetupSelected(game.players.map(p => p.username).filter(Boolean));
     setRoundInputs({});
     setShowWinner(true);
@@ -738,12 +797,42 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
 
       {/* dealer banner */}
       {game.gameStarted && (
-        <div style={{ ...S.glass, padding: "10px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 20 }}>🂠</span>
-          <div>
-            <div style={{ fontSize: 11, color: theme.textFaint, textTransform: "uppercase", letterSpacing: ".06em" }}>Dealing this round</div>
-            <div style={{ fontWeight: 700, color: theme.gold }}>{game.players[dealerIdx]?.name || "—"}</div>
+        <div style={{ ...S.glass, padding: "10px 16px", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>🂠</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: theme.textFaint, textTransform: "uppercase", letterSpacing: ".06em" }}>Dealing this round</div>
+              <div style={{ fontWeight: 700, color: theme.gold }}>{game.players[dealerIdx]?.name || "—"}</div>
+            </div>
+            {isHost && canChangeDealer && !dealerEditOpen && (
+              <button style={{ ...S.linkBtn, fontSize: 11, padding: "4px 6px" }} onClick={() => setDealerEditOpen(true)}>
+                ✏️ Change
+              </button>
+            )}
+            {isHost && game.dealerChangeUsed && (
+              <span style={{ fontSize: 10, color: theme.textFaint }}>🔒 used</span>
+            )}
           </div>
+          {isHost && dealerEditOpen && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${theme.divider}` }}>
+              <div style={{ fontSize: 11.5, color: theme.textFaint, marginBottom: 8 }}>
+                Pick who should deal instead — this can only be done once per game:
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                {game.players.map((p, i) => !p.eliminated && (
+                  <button key={i} onClick={() => handleChangeDealer(i)} style={{
+                    ...S.btn, padding: "6px 12px", minHeight: 32, fontSize: 12,
+                    background: i === dealerIdx ? theme.accentBg : theme.surfaceStrong,
+                    border: `1px solid ${i === dealerIdx ? theme.accentBorder : theme.surfaceBorder}`,
+                    color: theme.text,
+                  }}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              <button style={{ ...S.linkBtn, fontSize: 11, padding: 0 }} onClick={() => setDealerEditOpen(false)}>Cancel</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -885,6 +974,11 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
           <button style={{ ...S.btn, ...S.btnGreen, gridColumn: "span 2" }} onClick={addRound} disabled={syncing}>
             {syncing ? "Saving…" : "▶ Add Round"}
           </button>
+          {canEditLastRound && (
+            <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={editLastRound}>
+              ✏️ Edit Round {game.round - 1} (one-time correction)
+            </button>
+          )}
           <button style={{ ...S.btn, ...S.btnRed }} onClick={() => askConfirm("Start a new game? Scores reset to 0, but you keep this room, its code, and its players.", newGame)}>
             ↺ New Game
           </button>
@@ -896,6 +990,9 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
           <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
             {manualRefreshing ? "Refreshing…" : "🔄 Refresh Score"}
           </button>
+          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={() => setShowLearnToPlay(true)}>
+            🎓 Learn to Play (Rules & Guides)
+          </button>
         </div>
       )}
 
@@ -904,6 +1001,9 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
           <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowHistory(v => !v)}>📊 {showHistory ? "Hide" : "View"} Round History</button>
           <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
             {manualRefreshing ? "Refreshing…" : "🔄 Refresh Score"}
+          </button>
+          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowLearnToPlay(true)}>
+            🎓 Learn to Play (Rules & Guides)
           </button>
           <div style={{ textAlign: "center", color: theme.textFaint, fontSize: 13, padding: "4px 0" }}>
             🔴 Live · Auto-refreshes every {POLL_MS / 1000}s
@@ -992,6 +1092,8 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       )}
 
       {toast && <div style={S.toast}>{toast}</div>}
+
+      {showLearnToPlay && <LearnToPlayScreen onClose={() => setShowLearnToPlay(false)} />}
 
       {confirmDlg && (
         <div style={S.overlayWrapTop}>

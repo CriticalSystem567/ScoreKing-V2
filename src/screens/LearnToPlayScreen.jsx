@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { GAME_GUIDES, LEARN_DISCLAIMER } from "../gamesData.js";
+import { CardRow } from "../components/PlayingCard.jsx";
 
 function Section({ theme, title, color, children }) {
   return (
@@ -81,20 +82,27 @@ function GameDetail({ game, theme, S, onBack }) {
 
       {game.handRankings && (
         <Section theme={theme} title="Hand Rankings (best → worst)" color={theme.red}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {game.handRankings.map((h) => (
-              <div key={h.rank} style={{ ...S.glass, margin: 0, padding: "10px 12px", display: "flex", gap: 10 }}>
-                <div style={{
-                  flexShrink: 0, width: 26, height: 26, borderRadius: "50%", background: theme.accentBg,
-                  color: theme.accentLight, fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {h.rank}
+              <div key={h.rank} style={{ ...S.glass, margin: 0, padding: "10px 12px" }}>
+                <div style={{ display: "flex", gap: 10, marginBottom: h.cards ? 10 : 0 }}>
+                  <div style={{
+                    flexShrink: 0, width: 26, height: 26, borderRadius: "50%", background: theme.accentBg,
+                    color: theme.accentLight, fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {h.rank}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, color: theme.text, fontSize: 13.5 }}>{h.name}</div>
+                    <div style={{ fontSize: 12, color: theme.gold, fontFamily: "monospace", marginTop: 2 }}>{h.notation}</div>
+                    <div style={{ fontSize: 13, color: theme.textDim, lineHeight: 1.5, marginTop: 3 }}>{h.desc}</div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: theme.text, fontSize: 13.5 }}>{h.name}</div>
-                  <div style={{ fontSize: 12, color: theme.gold, fontFamily: "monospace", marginTop: 2 }}>{h.notation}</div>
-                  <div style={{ fontSize: 13, color: theme.textDim, lineHeight: 1.5, marginTop: 3 }}>{h.desc}</div>
-                </div>
+                {h.cards && (
+                  <div style={{ paddingLeft: 36 }}>
+                    <CardRow cards={h.cards} size={44} gap={6} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -116,6 +124,14 @@ function GameDetail({ game, theme, S, onBack }) {
 
       {game.example && (
         <Section theme={theme} title={game.example.title || "Example"} color={theme.accentLight}>
+          {game.example.cards && (
+            <div style={{ marginBottom: 10 }}>
+              <CardRow cards={game.example.cards} size={50} gap={8} />
+              {game.example.cardsCaption && (
+                <div style={{ fontSize: 11.5, color: theme.textFaint, marginTop: 6 }}>{game.example.cardsCaption}</div>
+              )}
+            </div>
+          )}
           <div style={{
             fontSize: 13.5, color: theme.textDim, lineHeight: 1.65, background: theme.accentBg,
             border: `1px solid ${theme.accentBorder}`, borderRadius: 10, padding: "12px 14px",

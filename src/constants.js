@@ -13,7 +13,7 @@ export const PLAYER_COLORS = [
 export const EMOJIS = ["🎮","🃏","🎲","🏆","🎯","🦁","🐯","🦊","🐺","🦅",
   "🔥","⚡","🌟","💎","🚀","😎","🤴","👸","🧙","🧝"];
 
-export const APP_VERSION = "v3.7.4.1";
+export const APP_VERSION = "v3.7.5.0";
 
 export const SECURITY_QUESTIONS = [
   "What's your favorite card game?",
@@ -42,6 +42,9 @@ export const DEFAULT_GAME = {
   players: [],
   history: [],
   updatedAt: 0,
+  editedRounds: [],         // round numbers that have already used their one-time score edit
+  dealerLog: {},            // { roundNumber: dealerIndex } — lets a round edit restore the right dealer
+  dealerChangeUsed: false,  // whether the one-time manual dealer override has been used this game
 };
 
 export function isPhotoAvatar(avatar) {

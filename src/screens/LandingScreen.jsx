@@ -2,7 +2,7 @@ import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
 import { APP_VERSION } from "../constants.js";
 
-export default function LandingScreen({ onLogin, onSignup, onAbout, onHowItWorks, onLearnToPlay, onQuickJoin }) {
+export default function LandingScreen({ onLogin, onSignup, onAbout, onHowItWorks, onQuickJoin }) {
   const { theme } = useTheme();
   const S = getStyles(theme);
 
@@ -22,10 +22,6 @@ export default function LandingScreen({ onLogin, onSignup, onAbout, onHowItWorks
 
           <button style={{ ...S.linkBtn, marginTop: 4 }} onClick={onQuickJoin}>
             Have a room code? Join directly →
-          </button>
-
-          <button style={{ ...S.btn, ...S.btnGhost, width: "100%", marginTop: 6 }} onClick={onLearnToPlay}>
-            🎓 Learn to Play (Rules & Guides)
           </button>
 
           <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 12 }}>

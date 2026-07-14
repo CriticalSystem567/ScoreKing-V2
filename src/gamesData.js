@@ -48,6 +48,8 @@ export const GAME_GUIDES = [
       body:
         "7♠-8♠-9♠ (pure sequence)  •  4♥-5♥-6♥ (second sequence)  •  K♦-K♣-K♠ (set)  •  2♣-2♦-[Joker] (set using the wild joker as the third 2). " +
         "This hand has 2 sequences (one pure) plus 2 valid sets — a complete, valid declare worth 0 points.",
+      cards: [{rank:"7",suit:"♠"},{rank:"8",suit:"♠"},{rank:"9",suit:"♠"}],
+      cardsCaption: "The pure sequence from that hand",
     },
   },
 
@@ -86,16 +88,16 @@ export const GAME_GUIDES = [
       "If everyone else folds before showdown, the last remaining player wins the pot without needing to reveal their cards.",
     ],
     handRankings: [
-      { rank: 1, name: "Royal Flush", notation: "A K Q J T (all same suit)", desc: "The top 5 cards of one suit, in sequence. The best possible hand." },
-      { rank: 2, name: "Straight Flush", notation: "e.g. 9 8 7 6 5 (all same suit)", desc: "Five cards in sequence, all the same suit." },
-      { rank: 3, name: "Four of a Kind", notation: "e.g. KKKK-x (often written 'quad Kings')", desc: "All 4 cards of one rank, plus any 5th card." },
-      { rank: 4, name: "Full House", notation: "e.g. KKKAA — read as 'Kings full of Aces'", desc: "Three of one rank PLUS a pair of another rank. Named by the three-of-a-kind first: 'X full of Y' means three X's and a pair of Y's." },
-      { rank: 5, name: "Flush", notation: "e.g. K 9 6 4 2 (all same suit)", desc: "Any 5 cards of the same suit, not in sequence." },
-      { rank: 6, name: "Straight", notation: "e.g. 9 8 7 6 5 (mixed suits)", desc: "Five cards in sequence, any suits." },
-      { rank: 7, name: "Three of a Kind", notation: "e.g. QQQ-x-y", desc: "Three cards of one rank, plus two unrelated cards. Also called a 'set' or 'trips'." },
-      { rank: 8, name: "Two Pair", notation: "e.g. AAKK-x", desc: "Two different pairs, plus one unrelated card." },
-      { rank: 9, name: "One Pair", notation: "e.g. AA-x-y-z", desc: "Two cards of the same rank, plus three unrelated cards." },
-      { rank: 10, name: "High Card", notation: "e.g. A-K-9-6-2, no pattern", desc: "No combination at all — ranked only by the highest card you hold." },
+      { rank: 1, name: "Royal Flush", notation: "A K Q J 10 (all same suit)", cards: [{rank:"A",suit:"♠"},{rank:"K",suit:"♠"},{rank:"Q",suit:"♠"},{rank:"J",suit:"♠"},{rank:"10",suit:"♠"}], desc: "The top 5 cards of one suit, in sequence. The best possible hand." },
+      { rank: 2, name: "Straight Flush", notation: "e.g. 9 8 7 6 5 (all same suit)", cards: [{rank:"9",suit:"♠"},{rank:"8",suit:"♠"},{rank:"7",suit:"♠"},{rank:"6",suit:"♠"},{rank:"5",suit:"♠"}], desc: "Five cards in sequence, all the same suit." },
+      { rank: 3, name: "Four of a Kind", notation: "e.g. KKKK-x (often written 'quad Kings')", cards: [{rank:"K",suit:"♠"},{rank:"K",suit:"♥"},{rank:"K",suit:"♦"},{rank:"K",suit:"♣"},{rank:"5",suit:"♠"}], desc: "All 4 cards of one rank, plus any 5th card." },
+      { rank: 4, name: "Full House", notation: "e.g. KKKAA — read as 'Kings full of Aces'", cards: [{rank:"K",suit:"♠"},{rank:"K",suit:"♥"},{rank:"K",suit:"♦"},{rank:"A",suit:"♠"},{rank:"A",suit:"♥"}], desc: "Three of one rank PLUS a pair of another rank. Named by the three-of-a-kind first: 'X full of Y' means three X's and a pair of Y's." },
+      { rank: 5, name: "Flush", notation: "e.g. K 9 6 4 2 (all same suit)", cards: [{rank:"K",suit:"♠"},{rank:"9",suit:"♠"},{rank:"6",suit:"♠"},{rank:"4",suit:"♠"},{rank:"2",suit:"♠"}], desc: "Any 5 cards of the same suit, not in sequence." },
+      { rank: 6, name: "Straight", notation: "e.g. 9 8 7 6 5 (mixed suits)", cards: [{rank:"9",suit:"♠"},{rank:"8",suit:"♥"},{rank:"7",suit:"♦"},{rank:"6",suit:"♣"},{rank:"5",suit:"♠"}], desc: "Five cards in sequence, any suits." },
+      { rank: 7, name: "Three of a Kind", notation: "e.g. QQQ-x-y", cards: [{rank:"Q",suit:"♠"},{rank:"Q",suit:"♥"},{rank:"Q",suit:"♦"},{rank:"8",suit:"♣"},{rank:"4",suit:"♠"}], desc: "Three cards of one rank, plus two unrelated cards. Also called a 'set' or 'trips'." },
+      { rank: 8, name: "Two Pair", notation: "e.g. AAKK-x", cards: [{rank:"A",suit:"♠"},{rank:"A",suit:"♥"},{rank:"K",suit:"♦"},{rank:"K",suit:"♣"},{rank:"5",suit:"♠"}], desc: "Two different pairs, plus one unrelated card." },
+      { rank: 9, name: "One Pair", notation: "e.g. AA-x-y-z", cards: [{rank:"A",suit:"♠"},{rank:"A",suit:"♥"},{rank:"K",suit:"♦"},{rank:"8",suit:"♣"},{rank:"4",suit:"♠"}], desc: "Two cards of the same rank, plus three unrelated cards." },
+      { rank: 10, name: "High Card", notation: "e.g. A-K-9-6-2, no pattern", cards: [{rank:"A",suit:"♠"},{rank:"K",suit:"♦"},{rank:"9",suit:"♥"},{rank:"6",suit:"♣"},{rank:"2",suit:"♠"}], desc: "No combination at all — ranked only by the highest card you hold." },
     ],
     notationNote:
       "Poker hands are often shorthanded by just listing the ranks, e.g. 'KKAAA' or 'AAKKK' both describe the SAME hand: three of one rank and a pair of another. Order in the shorthand doesn't matter — what matters is the pattern (3+2 = Full House). Read it as 'the rank that appears 3 times, full of the rank that appears 2 times'. So AAAKK = 'Aces full of Kings', and KKKAA = 'Kings full of Aces' — these are different hands, and Aces full beats Kings full since three Aces outranks three Kings.",
@@ -105,6 +107,8 @@ export const GAME_GUIDES = [
         "Your hole cards: K♠ K♥. Community cards (by the river): K♦ 9♣ 9♠ 2♥ 4♦. " +
         "Your best 5-card hand uses K♠ K♥ K♦ (three Kings) + 9♣ 9♠ (a pair of Nines) = a Full House, 'Kings full of Nines'. " +
         "If an opponent has A♦ A♣ as hole cards, their best hand is A♦ A♣ 9♣ 9♠ K♦ = Two Pair (Aces and Nines) — your Full House beats their Two Pair, so you win the pot.",
+      cards: [{rank:"K",suit:"♠"},{rank:"K",suit:"♥"},{rank:"K",suit:"♦"},{rank:"9",suit:"♣"},{rank:"9",suit:"♠"}],
+      cardsCaption: "Your winning hand: Kings full of Nines",
     },
   },
 
@@ -138,18 +142,20 @@ export const GAME_GUIDES = [
       "At a show, the two remaining hands are compared and the higher-ranked hand wins the whole pot.",
     ],
     handRankings: [
-      { rank: 1, name: "Trail / Set (Trio)", notation: "e.g. AAA", desc: "Three cards of the same rank. Highest trio wins; AAA is the best." },
-      { rank: 2, name: "Pure Sequence (Straight Flush)", notation: "e.g. 4♠5♠6♠", desc: "3 consecutive cards, same suit." },
-      { rank: 3, name: "Sequence (Run)", notation: "e.g. 4♠5♥6♦", desc: "3 consecutive cards, mixed suits." },
-      { rank: 4, name: "Colour (Flush)", notation: "e.g. K♠9♠2♠", desc: "3 cards of the same suit, not in sequence." },
-      { rank: 5, name: "Pair", notation: "e.g. QQ-x", desc: "Two cards of the same rank plus one other card." },
-      { rank: 6, name: "High Card", notation: "e.g. K-9-4, no pattern", desc: "No combination — highest single card decides." },
+      { rank: 1, name: "Trail / Set (Trio)", notation: "e.g. AAA", cards: [{rank:"A",suit:"♠"},{rank:"A",suit:"♥"},{rank:"A",suit:"♦"}], desc: "Three cards of the same rank. Highest trio wins; AAA is the best." },
+      { rank: 2, name: "Pure Sequence (Straight Flush)", notation: "e.g. 4♠5♠6♠", cards: [{rank:"4",suit:"♠"},{rank:"5",suit:"♠"},{rank:"6",suit:"♠"}], desc: "3 consecutive cards, same suit." },
+      { rank: 3, name: "Sequence (Run)", notation: "e.g. 4♠5♥6♦", cards: [{rank:"4",suit:"♠"},{rank:"5",suit:"♥"},{rank:"6",suit:"♦"}], desc: "3 consecutive cards, mixed suits." },
+      { rank: 4, name: "Colour (Flush)", notation: "e.g. K♠9♠2♠", cards: [{rank:"K",suit:"♠"},{rank:"9",suit:"♠"},{rank:"2",suit:"♠"}], desc: "3 cards of the same suit, not in sequence." },
+      { rank: 5, name: "Pair", notation: "e.g. QQ-x", cards: [{rank:"Q",suit:"♠"},{rank:"Q",suit:"♥"},{rank:"9",suit:"♦"}], desc: "Two cards of the same rank plus one other card." },
+      { rank: 6, name: "High Card", notation: "e.g. K-9-4, no pattern", cards: [{rank:"K",suit:"♠"},{rank:"9",suit:"♦"},{rank:"4",suit:"♣"}], desc: "No combination — highest single card decides." },
     ],
     example: {
       title: "Worked example",
       body:
         "Player A (seen): 9♠ 9♥ 9♦ — a Trail (three of a kind). Player B (seen): K♠ Q♠ J♠ — a Pure Sequence. " +
         "Even though a straight flush 'looks' impressive, a Trail always outranks it in Teen Patti — Player A wins the pot.",
+      cards: [{rank:"9",suit:"♠"},{rank:"9",suit:"♥"},{rank:"9",suit:"♦"}],
+      cardsCaption: "Player A's winning Trail",
     },
   },
 
@@ -193,6 +199,8 @@ export const GAME_GUIDES = [
         "Your hand: 9♣ + 7♦ = 16. You Hit and draw a 5♠ — that's 21, so you Stand. " +
         "The dealer's hand was K♥ (upcard) + 6♣ (hole card) = 16; dealer must Hit again since 16 is below 17, and draws a 9♦, making 25 — a bust. " +
         "Since the dealer busted, you win regardless of your own total (as long as you didn't bust).",
+      cards: [{rank:"9",suit:"♣"},{rank:"7",suit:"♦"},{rank:"5",suit:"♠"}],
+      cardsCaption: "Your final hand: 9 + 7 + 5 = 21",
     },
   },
 
@@ -319,6 +327,8 @@ export const GAME_GUIDES = [
       body:
         "By the end of a hand, Player A's won-pile contains 4 Hearts and the Queen of Spades: score = 4 + 13 = 17 penalty points added to their running total. " +
         "Meanwhile Player B's won-pile has no Hearts and no Queen: 0 points added that hand — the goal is to stay as close to 0 as possible.",
+      cards: [{rank:"Q",suit:"♠"},{rank:"2",suit:"♥"},{rank:"5",suit:"♥"},{rank:"9",suit:"♥"},{rank:"K",suit:"♥"}],
+      cardsCaption: "Player A's costly won-pile: Q♠ (13 pts) + 4 Hearts (4 pts) = 17",
     },
   },
 

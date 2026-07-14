@@ -7,6 +7,7 @@ import { PLAYER_COLORS, DEFAULT_GAME, buildGameCSV, downloadCSV } from "../const
 import { getZoneJoke, getWinnerLine, getRoundWinLine } from "../jokes.js";
 import QRCodeDisplay from "../components/QRCodeDisplay.jsx";
 import LearnToPlayScreen from "./LearnToPlayScreen.jsx";
+import RoundScoreChart from "../components/RoundScoreChart.jsx";
 import {
   getRoomGame, setRoomGame, createRoom, setRoomLocked, regenerateRoomCode,
   listRoomParticipants, removeParticipant, joinRoomByCode, leaveCurrentRoom,
@@ -853,6 +854,17 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
         </div>
       </div>
 
+      {/* On desktop, split into a left pane (live scores) and a right pane
+          (round-by-round line chart) instead of just stretching the same
+          single-column content wider. Tablet/mobile keep the simple
+          single-column stack. */}
+      <div style={{
+        display: vp.isDesktop ? "grid" : "block",
+        gridTemplateColumns: vp.isDesktop ? "1.3fr 1fr" : undefined,
+        gap: vp.isDesktop ? 20 : 0,
+        alignItems: "start",
+      }}>
+      <div>
       {/* PLAYER CARDS */}
       {!tableView && game.players.length === 0 && (
         <div style={{ ...S.glass, textAlign: "center", padding: 30, color: theme.textFaint, fontSize: 13 }}>
@@ -969,6 +981,15 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
           </table>
         </div>
       )}
+      </div>
+
+      {vp.isDesktop && (
+        <div style={{ ...S.glass, position: "sticky", top: 14, margin: 0 }}>
+          <div style={{ ...S.sectionLabel, marginBottom: 4 }}>📈 Score by Round</div>
+          <RoundScoreChart players={game.players} history={game.history} maxScore={maxS} theme={theme} />
+        </div>
+      )}
+      </div>
 
       {/* ACTION BAR (host only) */}
       {isHost && (

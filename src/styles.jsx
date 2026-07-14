@@ -37,7 +37,7 @@ export function getStyles(t, vp) {
     pcard:       { background:t.surface,backdropFilter:"blur(12px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:16,padding:16,boxShadow:t.shadow },
     // Player scoreboard cards: single column on phones, 2 columns on
     // iPad/tablet widths, 3 columns once there's real desktop real estate.
-    playerGrid:  { display:"grid",gridTemplateColumns: isDesktop ? "repeat(3,1fr)" : isTablet ? "repeat(2,1fr)" : "1fr",gap:10,marginBottom:14,alignItems:"start" },
+    playerGrid:  { display:"grid",gridTemplateColumns: isDesktop ? "repeat(2,1fr)" : isTablet ? "repeat(2,1fr)" : "1fr",gap:10,marginBottom:14,alignItems:"start" },
     outBadge:    { position:"absolute",top:14,right:14,fontSize:10,fontWeight:800,letterSpacing:".12em",color:t.textFaint,background:t.surfaceStrong,padding:"3px 9px",borderRadius:20 },
     dealerBadge: { position:"absolute",top:14,left:14,fontSize:10,fontWeight:800,letterSpacing:".06em",color:t.bg,background:`linear-gradient(135deg,${t.gold},${t.orange})`,padding:"3px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4 },
     rankBubble:  { width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0 },

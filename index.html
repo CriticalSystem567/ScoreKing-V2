@@ -15,6 +15,21 @@
   html,body{height:100%;background:#0d0d1a;color:#f0f0ff;font-family:'Inter',sans-serif;overscroll-behavior:none}
   body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom,16px)}
   #root{position:relative;min-height:100vh}
+
+  /* Polished, theme-matched scrollbars everywhere (instead of the browser's
+     default bulky/bright bar) — thin, translucent, and only really visible
+     while actively scrolling or hovering. */
+  * { scrollbar-width: thin; scrollbar-color: rgba(124,109,250,.35) transparent; }
+  *::-webkit-scrollbar { width: 6px; height: 6px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(124,109,250,.28);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(124,109,250,.5); background-clip: padding-box; }
+  *::-webkit-scrollbar-corner { background: transparent; }
 </style>
 </head>
 <body>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { login } from "../db.js";
 import InstallPrompt from "../components/InstallPrompt.jsx";
 import Toggle from "../components/Toggle.jsx";
@@ -16,7 +17,8 @@ function loadRememberedLogin() {
 
 export default function LoginScreen({ onBack, onForgot, onDone, installEvent, onInstallHandled, showIOSInstructions }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const saved = loadRememberedLogin();
   const [username, setUsername] = useState(saved?.username || "");
   const [password, setPassword] = useState(saved?.password || "");

@@ -1,13 +1,15 @@
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 
 export default function HowItWorksScreen({ onClose }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
 
   return (
     <div style={S.screen}>
-      <div style={{ ...S.loginBox, maxWidth: 440, textAlign: "left" }}>
+      <div style={{ ...S.loginBox, maxWidth: vp.isDesktop ? 560 : vp.isTablet ? 500 : 440, textAlign: "left" }}>
         <div style={{ textAlign: "center", marginBottom: 8 }}>
           <div style={S.logo}>❔ How It Works</div>
         </div>

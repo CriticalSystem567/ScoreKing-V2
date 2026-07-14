@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { SECURITY_QUESTIONS } from "../constants.js";
 import { signUp } from "../db.js";
 
 export default function SignupScreen({ onBack, onDone }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

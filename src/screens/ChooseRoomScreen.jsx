@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { joinRoomByCode, createRoom, listMyRooms } from "../db.js";
 import QRScanner from "../components/QRScanner.jsx";
 
 export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoinedRoom, onUpdateSession, onLogout }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const [mode, setMode] = useState("menu"); // menu | join | reopen
   const [roomCode, setRoomCode] = useState("");
   const [err, setErr] = useState("");
@@ -132,7 +134,7 @@ export default function ChooseRoomScreen({ session, onEnterOwnRoom, onEnterJoine
   // mode === "reopen"
   return (
     <div style={S.screen}>
-      <div style={{ ...S.loginBox, maxWidth: 420 }}>
+      <div style={{ ...S.loginBox, maxWidth: vp.isDesktop ? 560 : vp.isTablet ? 500 : 420 }}>
         <div style={S.logo}>ScoreKing ♠️</div>
         <div style={S.logoSub}>Reopen a Room</div>
 

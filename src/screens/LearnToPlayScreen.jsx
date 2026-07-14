@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { GAME_GUIDES, LEARN_DISCLAIMER } from "../gamesData.js";
 import { CardRow } from "../components/PlayingCard.jsx";
 
@@ -150,12 +151,17 @@ function GameDetail({ game, theme, S, onBack }) {
 
 export default function LearnToPlayScreen({ onClose }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const [selected, setSelected] = useState(null);
 
   return (
     <div style={S.screen}>
-      <div style={{ ...S.loginBox, maxWidth: 520, textAlign: "left", maxHeight: "88vh", overflowY: "auto" }}>
+      <div style={{
+        ...S.loginBox,
+        maxWidth: selected ? (vp.isDesktop ? 640 : vp.isTablet ? 600 : 520) : (vp.isDesktop ? 860 : vp.isTablet ? 680 : 520),
+        textAlign: "left", maxHeight: "88vh", overflowY: "auto",
+      }}>
         {!selected && (
           <>
             <div style={{ textAlign: "center", marginBottom: 4 }}>
@@ -174,7 +180,7 @@ export default function LearnToPlayScreen({ onClose }) {
               Pick a game to see the full rules, key terms explained in plain English, and a worked example.
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: vp.isDesktop ? "1fr 1fr 1fr" : vp.isTablet ? "1fr 1fr" : "1fr", gap: 10 }}>
               {GAME_GUIDES.map((g) => (
                 <button
                   key={g.id}

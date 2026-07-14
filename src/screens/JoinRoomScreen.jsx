@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { SECURITY_QUESTIONS } from "../constants.js";
 import { joinRoomByCode, login, signUp } from "../db.js";
 import QRScanner from "../components/QRScanner.jsx";
 
 export default function JoinRoomScreen({ onBack, onDone }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState(null); // null | "login" | "signup"
   const [showScanner, setShowScanner] = useState(false);

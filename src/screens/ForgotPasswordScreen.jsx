@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { getSecurityQuestion, resetPassword } from "../db.js";
 
 export default function ForgotPasswordScreen({ onBack }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState("");
   const [question, setQuestion] = useState("");

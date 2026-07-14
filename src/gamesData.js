@@ -225,13 +225,14 @@ export const GAME_GUIDES = [
       { term: "Skip", def: "The next player's turn is skipped entirely." },
       { term: "Reverse", def: "Reverses the direction of play (clockwise ↔ counter-clockwise)." },
       { term: "UNO!", def: "You must call out 'UNO' when you play your second-to-last card, warning others you have just 1 card left. Forget to call it and get caught, and you may have to draw penalty cards (house rule, commonly 2)." },
+      { term: "Winning on a power card", def: "You CAN win by playing an action/power card (Draw Two, Wild Draw Four, Skip, Reverse) as your very last card — the round ends immediately either way. However, the next player still has to carry out that card's effect (e.g. draw the cards) before scoring, and that card still counts at full value if you're playing for points." },
     ],
     howTo: [
       "On your turn, play a card from your hand that matches the top of the discard pile by color, number, or symbol — or play a wild card at any time.",
       "If you can't play a valid card, draw one card from the draw pile; if it's playable you may play it immediately, otherwise your turn ends.",
       "Action cards apply their effect immediately (skip the next player, reverse direction, or force the next player to draw cards).",
       "When you play your second-to-last card, call out 'UNO' — this is a required warning that you're about to be able to win.",
-      "The first player to play their very last card wins the round.",
+      "The first player to play their very last card wins the round — even if that last card is an action/power card rather than a plain number card (see 'Winning on a power card' below).",
     ],
     scoring: [
       "Casual play: simply play again for fun, best-of-X rounds.",
@@ -241,7 +242,99 @@ export const GAME_GUIDES = [
       title: "Example turn",
       body:
         "Top of discard pile: Red 7. You hold a Blue 7 (matches by number) and a Red Skip (matches by color) — either is legal to play. " +
-        "You play the Red Skip: the next player's turn is skipped entirely, and play continues with the player after them.",
+        "You play the Red Skip: the next player's turn is skipped entirely, and play continues with the player after them. " +
+        "Later in the same game, your very last card happens to be a Draw Two — you play it and win immediately, but the next player must still draw those 2 cards before everyone counts up points.",
+    },
+  },
+
+  {
+    id: "unoflip",
+    emoji: "🌓",
+    name: "UNO Flip",
+    tag: "Shedding, double-sided deck · 2–10 players",
+    players: "2 to 10 players",
+    deck:
+      "112 special double-sided cards: every card has a calmer 'Light Side' (blue/green/yellow/red, matching classic UNO) printed on the back of a tougher 'Dark Side' (pink/teal/purple/orange) — only one side is in play at a time.",
+    objective:
+      "Just like classic UNO, be the first to get rid of every card in your hand — but the deck is double-sided, and special Flip cards can suddenly switch the ENTIRE game (draw pile, discard pile, and everyone's hand) from the mild Light Side to the much harsher Dark Side, or back again.",
+    setup: [
+      "Shuffle and deal 7 cards to each player; everyone holds their cards with the Light Side facing them.",
+      "Flip the top card of the draw pile face-up to start the discard pile — the game always begins on the Light Side.",
+      "Play proceeds clockwise starting with the player to the dealer's left, exactly like classic UNO.",
+    ],
+    terms: [
+      { term: "Light Side", def: "The gentler side of the deck: numbers 1–9 plus Draw One, Skip, Reverse, Wild, Wild Draw Two, and Flip. This is always where a hand starts." },
+      { term: "Dark Side", def: "The harsher side: numbers 1–9 plus Draw Five, Skip Everyone, Reverse, Wild, Wild Draw Color, and Flip — much bigger penalties." },
+      { term: "Flip card", def: "The signature card of this version. Playing it instantly flips EVERYTHING over to the other side — the draw pile, the discard pile, and every player's hand — and play continues from there until another Flip card is played." },
+      { term: "Skip Everyone (Dark Side only)", def: "Every other player at the table loses their turn, and play comes straight back around to you again." },
+      { term: "Wild Draw Color (Dark Side only)", def: "You name a color; the next player must reveal cards from the draw pile one at a time until they get a card of that color, add ALL of those revealed cards to their hand, and lose their turn." },
+    ],
+    howTo: [
+      "On your turn, play a card matching the top discard by color, number, or symbol — but only cards from whichever side (Light or Dark) is currently active.",
+      "If you have nothing playable, draw one card from the draw pile; play it immediately if it's legal, otherwise your turn ends.",
+      "Action cards resolve immediately, same as classic UNO — but remember Dark Side action cards hit much harder.",
+      "If you play a Flip card, everything flips right then: turn over the discard pile, the draw pile, and every player's hand, all to the opposite side. Play continues from the newly-revealed top card.",
+      "Call 'UNO' when you play your second-to-last card, on whichever side you're currently playing.",
+      "First player to empty their hand wins the round. If your last card forces the next player to draw, they still must do so before scoring.",
+    ],
+    scoring: [
+      "Scoring happens on whichever side (Light or Dark) the round ended on — cards are only worth points if they belong to that side.",
+      "Number cards score their face value; action cards from the active side are worth more (commonly 20 points), and Wild-type cards score the most (commonly 40–50 points) — agree on exact values with your group, or use the totals printed on your deck's rules insert.",
+      "Play continues over multiple hands; first player to reach 500 total points wins the game.",
+    ],
+    example: {
+      title: "Worked example",
+      body:
+        "The discard pile shows a Light Side Blue 7. You play a Blue Flip card from your hand. " +
+        "Instantly, the discard pile, the draw pile, and every player's hand flip over to their Dark Side — the Blue Flip card is now showing as its Dark Side color and value. " +
+        "Play continues from there, except now the much tougher Draw Five, Skip Everyone, and Wild Draw Color cards are all in play instead of their milder Light Side counterparts, until someone plays another Flip card to switch back.",
+    },
+  },
+
+  {
+    id: "unonomercy",
+    emoji: "☠️",
+    name: "UNO Show 'Em No Mercy",
+    tag: "Shedding, high-chaos · 2–6 players",
+    players: "2 to 6 players",
+    deck:
+      "168 cards — a bigger, tougher relative of classic UNO with harsher action cards (Draw 2, Draw 4, Skip, Skip Everyone, Discard All) and four brutal Wild cards (Wild Draw 6, Wild Draw 10, Wild Reverse Draw 4, Wild Color Roulette).",
+    objective:
+      "Be the first to get rid of every card in your hand, OR simply outlast the table — this version adds a 'Mercy Rule' that knocks a player completely out of the game if their hand grows too large.",
+    setup: [
+      "Deal 7 cards to each of the 2–6 players.",
+      "Place the remaining cards face-down as the draw pile.",
+      "Flip the top card face-up to start the discard pile — if it's an action or Wild card, keep flipping the next card instead until you land on a plain number card.",
+    ],
+    terms: [
+      { term: "Stacking", def: "When someone plays a Draw card (+2, +4, +6, or +10), you can respond with a Draw card of equal or higher value instead of drawing — the penalty adds up and passes to the next player, who faces the same choice." },
+      { term: "Mercy Rule", def: "If any player's hand ever reaches 25 cards or more, they are knocked out of the game immediately and take no further part in that hand." },
+      { term: "7-Rule", def: "Whenever ANY 7 is played, the player who played it must immediately swap their entire hand with one other player of their choice." },
+      { term: "0-Rule", def: "Whenever ANY 0 is played, every player at the table passes their entire hand to the next player in turn order, all at once." },
+      { term: "Discard All", def: "A special card that lets you immediately discard every card of one color from your hand in one go, instead of playing just one card." },
+      { term: "Wild Color Roulette", def: "When this is played, the NEXT player (not the player who played it) names a color, then reveals cards from the draw pile one at a time until they hit that color, adds everything revealed to their hand, and loses their turn." },
+    ],
+    howTo: [
+      "On your turn, play a card matching the top discard by color, number, or symbol; action and Wild cards trigger their effect immediately.",
+      "If you can't play, keep drawing from the draw pile until you draw something you CAN play — unlike classic UNO's single draw — then you may play it right away.",
+      "Whenever a 7 is played, that player instantly swaps hands with any other player of their choice (the 7-Rule).",
+      "Whenever a 0 is played, everyone passes their whole hand to the next player in turn order at once (the 0-Rule).",
+      "Draw-card penalties (+2/+4/+6/+10) can be 'stacked' with an equal-or-higher Draw card instead of drawing, passing a growing penalty down the line.",
+      "Watch your hand size — if it ever reaches 25 or more cards, you're knocked out of the game immediately under the Mercy Rule.",
+      "Call 'UNO' on your second-to-last card, same as classic UNO.",
+      "Win by playing your very last card, OR by being the only player left after everyone else has been knocked out by the Mercy Rule.",
+    ],
+    scoring: [
+      "When a hand ends, the winner scores points for every card left in opponents' hands: number cards at face value, standard action cards worth 20 points, and the big Wild action cards (Wild Reverse Draw 4, Wild Draw 6, Wild Draw 10, Wild Color Roulette) worth 50 points each.",
+      "The winner also scores 250 bonus points for every player they personally knocked out via the Mercy Rule during that hand.",
+      "Play continues over multiple hands; first player to reach 1000 total points wins the game.",
+    ],
+    example: {
+      title: "Worked example",
+      body:
+        "Player A plays a Draw 4. Instead of drawing, Player B stacks a Draw 6 of their own on top, pushing the penalty up to 6 cards. " +
+        "Player C has no Draw card to stack, so they must draw all 6 — pushing their hand from 21 cards up to 27. " +
+        "Since 27 is over the Mercy Rule's 25-card limit, Player C is knocked out of the game immediately, and Player B earns 250 bonus points for the knockout once the hand ends.",
     },
   },
 

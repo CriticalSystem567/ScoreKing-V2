@@ -1,23 +1,43 @@
 /* Styles are generated per-theme via getStyles(theme) — see ThemeContext.jsx.
    Every screen calls `const S = getStyles(theme)` instead of importing a
    static object, so every color updates instantly when the theme toggles. */
-export function getStyles(t) {
+/* Styles are generated per-theme (and now per-viewport) via getStyles(theme, vp)
+   — see ThemeContext.jsx / ViewportContext.jsx. Every screen calls
+   `const S = getStyles(theme, vp)` so colors AND layout widths update
+   instantly when the theme toggles or the window/device size changes. `vp`
+   is optional — omitting it just falls back to mobile-sized defaults, so
+   nothing breaks if a caller hasn't been updated yet. */
+export function getStyles(t, vp) {
+  const isTablet = !!vp?.isTablet;
+  const isDesktop = !!vp?.isDesktop;
+  const isWide = !!vp?.isWide;
+
+  // Container widths grow in steps as the viewport grows, instead of the
+  // mobile 480px cap stretching awkwardly across a laptop or desktop screen.
+  const loginBoxMax = isDesktop ? 440 : isTablet ? 420 : 380;
+  const appWrapMax = isWide ? 1180 : isDesktop ? 980 : isTablet ? 760 : 480;
+  const appWrapPad = isDesktop ? "24px 32px" : isTablet ? "20px 24px" : "16px 14px";
+  const winBoxMax = isDesktop || isTablet ? 360 : 320;
+
   return {
     screen:      { position:"fixed",inset:0,background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:100,overflowY:"auto" },
-    loginBox:    { width:"100%",maxWidth:380,background:t.surface,backdropFilter:"blur(16px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:24,padding:"32px 28px",textAlign:"center",margin:"auto",boxShadow:t.shadow },
+    loginBox:    { width:"100%",maxWidth:loginBoxMax,background:t.surface,backdropFilter:"blur(16px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:24,padding: isDesktop || isTablet ? "36px 34px" : "32px 28px",textAlign:"center",margin:"auto",boxShadow:t.shadow },
     logo:        { fontFamily:"monospace",fontSize:28,fontWeight:700,color:t.accentLight,background:`linear-gradient(135deg,${t.accentLight},${t.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text" },
     logoSub:     { fontSize:11,letterSpacing:".15em",textTransform:"uppercase",color:t.textFaint,marginTop:2,marginBottom:24 },
-    profileGrid: { display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8 },
+    profileGrid: { display:"grid",gridTemplateColumns: isDesktop || isTablet ? "repeat(3,1fr)" : "1fr 1fr",gap:10,marginBottom:8 },
     profileBtn:  { background:t.surfaceStrong,border:`1.5px solid ${t.surfaceBorder}`,borderRadius:14,padding:"16px 10px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:8,transition:"all .18s" },
     pinDot:      { width:14,height:14,borderRadius:"50%",border:`2px solid ${t.surfaceBorder}`,transition:"all .15s" },
     pinPad:      { display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 },
     pinKey:      { background:t.surfaceStrong,border:`1px solid ${t.surfaceBorder}`,borderRadius:12,color:t.text,fontSize:20,fontWeight:600,minHeight:52,cursor:"pointer" },
 
-    appWrap:     { background:t.bg,minHeight:"100vh",padding:"16px 14px",maxWidth:480,margin:"0 auto",position:"relative" },
+    appWrap:     { background:t.bg,minHeight:"100vh",padding:appWrapPad,maxWidth:appWrapMax,margin:"0 auto",position:"relative" },
     topBar:      { display:"flex",alignItems:"center",justifyContent:"space-between",background:t.surfaceStrong,border:`1px solid ${t.surfaceBorder}`,borderRadius:10,padding:"10px 14px",marginBottom:14,gap:8,flexWrap:"wrap" },
     glass:       { background:t.surface,backdropFilter:"blur(12px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:16,padding:18,marginBottom:14,boxShadow:t.shadow },
     statBox:     { padding:"12px 8px",textAlign:"center",borderRadius:10,background:t.surface,border:`1px solid ${t.surfaceBorder}` },
     pcard:       { background:t.surface,backdropFilter:"blur(12px)",border:`1px solid ${t.surfaceBorder}`,borderRadius:16,padding:16,boxShadow:t.shadow },
+    // Player scoreboard cards: single column on phones, 2 columns on
+    // iPad/tablet widths, 3 columns once there's real desktop real estate.
+    playerGrid:  { display:"grid",gridTemplateColumns: isDesktop ? "repeat(3,1fr)" : isTablet ? "repeat(2,1fr)" : "1fr",gap:10,marginBottom:14,alignItems:"start" },
     outBadge:    { position:"absolute",top:14,right:14,fontSize:10,fontWeight:800,letterSpacing:".12em",color:t.textFaint,background:t.surfaceStrong,padding:"3px 9px",borderRadius:20 },
     dealerBadge: { position:"absolute",top:14,left:14,fontSize:10,fontWeight:800,letterSpacing:".06em",color:t.bg,background:`linear-gradient(135deg,${t.gold},${t.orange})`,padding:"3px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4 },
     rankBubble:  { width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0 },
@@ -37,7 +57,7 @@ export function getStyles(t) {
     btnGhost:    { background:t.surfaceStrong,border:`1px solid ${t.surfaceBorder}`,color:t.textDim },
     overlayWrap: { position:"fixed",inset:0,background:t.overlayBg,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)" },
     overlayWrapTop: { position:"fixed",inset:0,background:t.overlayBg,zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)" },
-    winBox:      { background:t.cardBg,border:`1px solid ${t.accentBorder}`,borderRadius:24,padding:"36px 28px",textAlign:"center",maxWidth:320,width:"100%",boxShadow:t.shadow },
+    winBox:      { background:t.cardBg,border:`1px solid ${t.accentBorder}`,borderRadius:24,padding:"36px 28px",textAlign:"center",maxWidth:winBoxMax,width:"100%",boxShadow:t.shadow },
     toast:       { position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:t.cardBg,border:`1px solid ${t.surfaceBorder}`,color:t.text,padding:"12px 22px",borderRadius:40,fontSize:14,fontWeight:500,zIndex:9999,whiteSpace:"nowrap",backdropFilter:"blur(10px)",maxWidth:"90vw",overflow:"hidden",textOverflow:"ellipsis",boxShadow:t.shadow },
     th:          { padding:"8px 6px",textAlign:"center",color:t.textFaint,fontSize:11,textTransform:"uppercase",letterSpacing:".05em",borderBottom:`1px solid ${t.surfaceBorder}` },
     td:          { padding:"8px 6px",textAlign:"center",color:t.text },

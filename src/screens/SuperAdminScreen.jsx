@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { listAllPlayers, deletePlayerAccount, getRoomCountsByAdmin } from "../db.js";
 
 export default function SuperAdminScreen({ onExit }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
   const [players, setPlayers] = useState([]);
   const [roomCounts, setRoomCounts] = useState({});
   const [loading, setLoading] = useState(true);

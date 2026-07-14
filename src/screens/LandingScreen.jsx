@@ -1,10 +1,12 @@
 import { getStyles } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { APP_VERSION } from "../constants.js";
 
 export default function LandingScreen({ onLogin, onSignup, onAbout, onHowItWorks, onQuickJoin }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
 
   return (
     <div style={S.screen}>

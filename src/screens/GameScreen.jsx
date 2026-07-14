@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../supabaseClient.js";
 import { getStyles, Avatar } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
+import { useViewport } from "../ViewportContext.jsx";
 import { PLAYER_COLORS, DEFAULT_GAME, buildGameCSV, downloadCSV } from "../constants.js";
 import { getZoneJoke, getWinnerLine, getRoundWinLine } from "../jokes.js";
 import QRCodeDisplay from "../components/QRCodeDisplay.jsx";
@@ -18,7 +19,8 @@ const POLL_MS = 3000;
 
 export default function GameScreen({ session, viewMode, roomId, onLogout, onBackToChoice, onEnterOwnRoom, onEnterJoinedRoom, onUpdateSession }) {
   const { theme } = useTheme();
-  const S = getStyles(theme);
+  const vp = useViewport();
+  const S = getStyles(theme, vp);
 
   const isOwnView = viewMode === "own";
   const isHost = isOwnView; // I'm the host/scorer of the room currently being viewed
@@ -858,7 +860,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
         </div>
       )}
       {!tableView && game.players.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        <div style={S.playerGrid}>
           {game.players.map((p, i) => {
             const elim = p.eliminated;
             const pct = Math.min(100, Math.round(p.total / maxS * 100));
@@ -970,12 +972,12 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
 
       {/* ACTION BAR (host only) */}
       {isHost && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <button style={{ ...S.btn, ...S.btnGreen, gridColumn: "span 2" }} onClick={addRound} disabled={syncing}>
+        <div style={{ display: "grid", gridTemplateColumns: vp.isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+          <button style={{ ...S.btn, ...S.btnGreen, gridColumn: vp.isMobile ? "span 2" : "span 4" }} onClick={addRound} disabled={syncing}>
             {syncing ? "Saving…" : "▶ Add Round"}
           </button>
           {canEditLastRound && (
-            <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={editLastRound}>
+            <button style={{ ...S.btn, ...S.btnGhost, gridColumn: vp.isMobile ? "span 2" : "span 4" }} onClick={editLastRound}>
               ✏️ Edit Round {game.round - 1} (one-time correction)
             </button>
           )}
@@ -987,25 +989,25 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
             {newRoomBusy ? "Creating…" : "🆕 New Room"}
           </button>
           <button style={{ ...S.btn, ...S.btnGhost }} onClick={handleExport}>⬇ Export CSV</button>
-          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
+          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: vp.isMobile ? "span 2" : "span 2" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
             {manualRefreshing ? "Refreshing…" : "🔄 Refresh Score"}
           </button>
-          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: "span 2" }} onClick={() => setShowLearnToPlay(true)}>
+          <button style={{ ...S.btn, ...S.btnGhost, gridColumn: vp.isMobile ? "span 2" : "span 2" }} onClick={() => setShowLearnToPlay(true)}>
             🎓 Learn to Play (Rules & Guides)
           </button>
         </div>
       )}
 
       {!isHost && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowHistory(v => !v)}>📊 {showHistory ? "Hide" : "View"} Round History</button>
-          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
+        <div style={{ display: "flex", flexDirection: vp.isMobile ? "column" : "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <button style={{ ...S.btn, ...S.btnGhost, flex: vp.isMobile ? "1 1 100%" : "1 1 auto" }} onClick={() => setShowHistory(v => !v)}>📊 {showHistory ? "Hide" : "View"} Round History</button>
+          <button style={{ ...S.btn, ...S.btnGhost, flex: vp.isMobile ? "1 1 100%" : "1 1 auto" }} onClick={handleManualRefresh} disabled={manualRefreshing}>
             {manualRefreshing ? "Refreshing…" : "🔄 Refresh Score"}
           </button>
-          <button style={{ ...S.btn, ...S.btnGhost, width: "100%" }} onClick={() => setShowLearnToPlay(true)}>
+          <button style={{ ...S.btn, ...S.btnGhost, flex: vp.isMobile ? "1 1 100%" : "1 1 auto" }} onClick={() => setShowLearnToPlay(true)}>
             🎓 Learn to Play (Rules & Guides)
           </button>
-          <div style={{ textAlign: "center", color: theme.textFaint, fontSize: 13, padding: "4px 0" }}>
+          <div style={{ textAlign: "center", color: theme.textFaint, fontSize: 13, padding: "4px 0", flex: vp.isMobile ? "1 1 100%" : "0 0 auto" }}>
             🔴 Live · Auto-refreshes every {POLL_MS / 1000}s
           </div>
         </div>

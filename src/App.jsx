@@ -161,5 +161,9 @@ export default function App() {
     : (!aboutSeen && screen === "landing") ? "about-first"
     : screen;
 
-  return <div key={routeKey} className="sk-page-transition">{renderScreen()}</div>;
+  return (
+    <div key={routeKey} className="sk-page-transition" style={{ minHeight: "100vh" }}>
+      {renderScreen()}
+    </div>
+  );
 }

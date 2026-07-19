@@ -5,15 +5,15 @@
 export const SUPER_ADMIN_PASSPHRASE = "Preswar0607";
 
 export const PLAYER_COLORS = [
-  "#a48cff","#22c97a","#ff5c5c","#f5c842",
-  "#60b4fa","#ff8c42","#c064fa","#2ddcc8",
-  "#f064a0","#64c850","#fab450","#50a0f0",
+  "#E8D5A3","#2ED573","#FF6B7A","#6C93E0",
+  "#C9A84C","#B47EE0","#3DD6C4","#F0A868",
+  "#E06C9F","#8FD15A","#D9A0FF","#5FBFE0",
 ];
 
 export const EMOJIS = ["🎮","🃏","🎲","🏆","🎯","🦁","🐯","🦊","🐺","🦅",
   "🔥","⚡","🌟","💎","🚀","😎","🤴","👸","🧙","🧝"];
 
-export const APP_VERSION = "v3.7.6.0";
+export const APP_VERSION = "v4.1.T4";
 
 export const SECURITY_QUESTIONS = [
   "What's your favorite card game?",

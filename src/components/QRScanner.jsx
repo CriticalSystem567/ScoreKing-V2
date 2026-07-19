@@ -181,7 +181,7 @@ export default function QRScanner({ onScan, onClose }) {
               position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               <div style={{
-                width: 180, height: 180, border: "2px solid rgba(124,109,250,.8)", borderRadius: 12,
+                width: 180, height: 180, border: "2px solid rgba(201,168,76,.8)", borderRadius: 12,
                 boxShadow: "0 0 0 2000px rgba(0,0,0,.35)",
               }} />
             </div>

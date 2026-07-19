@@ -152,5 +152,14 @@ export default function App() {
   }
   };
 
-  return renderScreen();
+  // A stable key made of just the pieces renderScreen() actually branches
+  // on — when it changes, the wrapper div remounts fresh, which is what
+  // replays the CSS fade-slide (see .sk-page-transition in index.html).
+  const routeKey = screen === "superadmin" ? "superadmin"
+    : session && activeRoomId ? `game:${activeRoomId}:${viewMode}`
+    : session ? "choose"
+    : (!aboutSeen && screen === "landing") ? "about-first"
+    : screen;
+
+  return <div key={routeKey} className="sk-page-transition">{renderScreen()}</div>;
 }

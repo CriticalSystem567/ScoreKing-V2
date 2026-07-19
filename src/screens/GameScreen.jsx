@@ -8,6 +8,8 @@ import { getZoneJoke, getWinnerLine, getRoundWinLine } from "../jokes.js";
 import QRCodeDisplay from "../components/QRCodeDisplay.jsx";
 import LearnToPlayScreen from "./LearnToPlayScreen.jsx";
 import RoundScoreChart from "../components/RoundScoreChart.jsx";
+import RollingNumber from "../components/RollingNumber.jsx";
+import ParticleBurst from "../components/ParticleBurst.jsx";
 import {
   getRoomGame, setRoomGame, createRoom, setRoomLocked, regenerateRoomCode,
   listRoomParticipants, removeParticipant, joinRoomByCode, leaveCurrentRoom,
@@ -139,6 +141,28 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
     }
     if (!game?.winner) lastSeenWinnerRef.current = null;
   }, [game?.winner]);
+
+  // Detects the instant a player flips from active -> eliminated (including
+  // via sync from another device) so that one card can play its collapse +
+  // red-flash + particle moment exactly once, instead of firing on every
+  // render the player happens to already be eliminated on.
+  const prevEliminatedRef = useRef({});
+  const [justEliminated, setJustEliminated] = useState({});
+  useEffect(() => {
+    if (!game?.players) return;
+    game.players.forEach((p, i) => {
+      const key = p.username || `${i}-${p.name}`;
+      const wasEliminated = prevEliminatedRef.current[key];
+      if (p.eliminated && !wasEliminated) {
+        setJustEliminated(prev => ({ ...prev, [i]: true }));
+        setTimeout(() => setJustEliminated(prev => {
+          if (!prev[i]) return prev;
+          const next = { ...prev }; delete next[i]; return next;
+        }), 950);
+      }
+      prevEliminatedRef.current[key] = !!p.eliminated;
+    });
+  }, [game?.players]);
 
   /* ── resolve the host's username for "joined" view (needed for display + participant queries) ── */
   useEffect(() => {
@@ -678,7 +702,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       {showHelpTip && (
         <div style={{
           ...S.glass, padding: "12px 14px", marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 10,
-          background: "rgba(124,109,250,.08)", border: "1px solid rgba(124,109,250,.2)",
+          background: theme.accentBg, border: `1px solid ${theme.accentBorder}`,
         }}>
           <span style={{ fontSize: 16 }}>💡</span>
           <div style={{ flex: 1, fontSize: 12, color: theme.textDim, lineHeight: 1.5 }}>
@@ -792,7 +816,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, margin: "14px 0" }}>
         {[["Players", game.numPlayers, theme.accentLight], ["Max", maxS, theme.blue], ["Round", game.round, theme.gold], ["Active", getActive(), theme.green]].map(([l, v, c]) => (
           <div key={l} style={S.statBox}>
-            <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 700, color: c, lineHeight: 1 }}>{v}</div>
+            <div style={{ fontFamily: theme.fontMono, fontSize: 22, fontWeight: 700, color: c, lineHeight: 1 }}>{v}</div>
             <div style={{ fontSize: 10, color: theme.textFaint, marginTop: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{l}</div>
           </div>
         ))}
@@ -841,16 +865,16 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
 
       {/* ROUND LABEL + VIEW TOGGLE */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0", padding: "0 2px" }}>
-        <div style={{ flex: 1, height: 1, background: theme.surfaceBorder }} />
-        <span style={{ fontSize: 11, color: theme.textFaint, textTransform: "uppercase", letterSpacing: ".12em", whiteSpace: "nowrap" }}>
+        <div style={{ flex: 1, height: 1, background: theme.divider }} />
+        <span style={{ fontSize: 11, color: theme.gold, textTransform: "uppercase", letterSpacing: ".12em", whiteSpace: "nowrap", fontWeight: 600 }}>
           Round {game.round} — {isHost ? "Enter scores below" : "Viewing live scores"}
         </span>
-        <div style={{ flex: 1, height: 1, background: theme.surfaceBorder }} />
+        <div style={{ flex: 1, height: 1, background: theme.divider }} />
       </div>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
         <div style={{ display: "flex", background: theme.surface, border: `1px solid ${theme.surfaceBorder}`, borderRadius: 10, padding: 3, gap: 2 }}>
-          <button onClick={() => setTableView(false)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: !tableView ? "rgba(124,109,250,.25)" : "transparent", color: !tableView ? theme.accentLight : theme.textDim }}>🗂 Cards</button>
-          <button onClick={() => setTableView(true)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: tableView ? "rgba(124,109,250,.25)" : "transparent", color: tableView ? theme.accentLight : theme.textDim }}>📋 Table</button>
+          <button onClick={() => setTableView(false)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: !tableView ? theme.accentBg : "transparent", color: !tableView ? theme.gold : theme.textDim }}>🗂 Cards</button>
+          <button onClick={() => setTableView(true)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: tableView ? theme.accentBg : "transparent", color: tableView ? theme.gold : theme.textDim }}>📋 Table</button>
         </div>
       </div>
 
@@ -883,15 +907,24 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
             const isDealer = i === dealerIdx && !elim;
             const zone = elim ? null : pct >= 90 ? "danger" : pct >= 70 ? "warn" : null;
             const joke = zone ? game.jokes?.[i]?.text : null;
+            const flashing = !!justEliminated[i];
+            const scoreColor = pct >= 90 && !elim ? theme.red : pct >= 70 && !elim ? theme.orange : theme.text;
             return (
-              <div key={i} style={{ ...S.pcard, opacity: elim ? .45 : 1, position: "relative" }}>
-                {elim && <div style={S.outBadge}>OUT</div>}
+              <div key={i} style={{
+                ...S.pcard,
+                opacity: elim ? .45 : 1,
+                position: "relative",
+                animation: flashing ? "skElimFlash .9s ease" : undefined,
+              }}>
+                {flashing && <ParticleBurst count={20} colors={[theme.red, "#FF8A94", theme.orange]} spread={110} />}
+                {elim && <div style={{ ...S.outBadge, animation: flashing ? "skOutBadgePop .5s ease .25s both" : undefined }}>OUT</div>}
                 {isDealer && <div style={S.dealerBadge}>🂠 DEALER</div>}
                 <div style={{ ...S.flex("row", "center", 12), marginBottom: 14, marginTop: isDealer ? 14 : 0 }}>
                   <div style={{ ...S.rankBubble, background: `${col}22`, color: rank <= 3 ? rankColors[rank] : theme.textDim }}>{rank || "—"}</div>
                   <Avatar avatar={p.avatar} size={26} />
-                  <div style={{ flex: 1, fontWeight: 700, fontSize: 16, color: col }}>{p.name}</div>
-                  <div style={{ fontFamily: "monospace", fontSize: 28, fontWeight: 700, color: pct >= 90 && !elim ? theme.red : pct >= 70 && !elim ? theme.orange : theme.text }}>{p.total}</div>
+                  <div style={{ flex: 1, fontWeight: 700, fontSize: 16, color: col, fontFamily: theme.fontDisplay }}>{p.name}</div>
+                  <RollingNumber value={p.total} flashColor={theme.gold}
+                    style={{ fontFamily: theme.fontMono, fontSize: 32, fontWeight: 800, color: scoreColor }} />
                 </div>
                 <div style={{ height: 5, background: theme.surfaceBorder, borderRadius: 3, overflow: "hidden", marginBottom: 12 }}>
                   <div style={{ height: "100%", width: `${pct}%`, background: pct >= 90 ? theme.red : pct >= 70 ? theme.orange : theme.green, borderRadius: 3, transition: "width .5s" }} />
@@ -959,7 +992,9 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
                     <td style={{ ...S.td, textAlign: "left", fontWeight: 700, color: col }}>
                       {p.name}{isDealer && <span style={{ marginLeft: 6, fontSize: 11 }}>🂠</span>}
                     </td>
-                    <td style={{ ...S.td, fontFamily: "monospace", fontWeight: 700 }}>{p.total}</td>
+                    <td style={{ ...S.td, fontFamily: theme.fontMono, fontWeight: 700 }}>
+                      <RollingNumber value={p.total} flashColor={theme.gold} duration={550} />
+                    </td>
                     <td style={{ ...S.td, color: elim ? theme.textFaint : theme.red }}>{elim ? "—" : needs}</td>
                     <td style={{ ...S.td, fontWeight: 700, fontSize: 11, color: game.winner === p.name ? theme.gold : elim ? theme.textFaint : pct >= 90 ? theme.red : pct >= 70 ? theme.orange : theme.green }}>
                       {game.winner === p.name ? "🏆 WON" : elim ? "OUT" : pct >= 90 ? "DANGER" : pct >= 70 ? "WARN" : "SAFE"}
@@ -1083,9 +1118,10 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
       {game.winner && showWinner && (
         <div style={S.overlayWrap}>
           <div style={S.winBox}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: theme.accentLight, marginBottom: 4 }}>Game Over!</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: theme.gold, marginBottom: 10 }}>{game.winner}</div>
+            <ParticleBurst count={44} colors={[theme.gold, theme.goldLight || "#E8D5A3", theme.green]} spread={190} />
+            <div style={{ fontSize: 60, marginBottom: 10, animation: "skTrophyDrop .7s cubic-bezier(.2,.9,.3,1.3) both" }}>🏆</div>
+            <div style={{ fontSize: 15, letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 700, color: theme.textFaint, marginBottom: 6 }}>Game Over</div>
+            <div style={{ fontSize: 30, fontWeight: 900, fontFamily: theme.fontDisplay, color: theme.gold, marginBottom: 10, textShadow: `0 0 24px ${theme.gold}55` }}>{game.winner}</div>
 
             {game.players.length > 1 && (
               <div style={{
@@ -1175,7 +1211,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
                   if (tab === "history") { isOwnView ? loadAdminHistory() : null; loadMyHistory(); }
                 }} style={{
                   ...S.btn, flex: 1, padding: "8px 0", minHeight: 36, fontSize: 12,
-                  background: profileTab === tab ? "rgba(124,109,250,.25)" : theme.surface,
+                  background: profileTab === tab ? theme.accentBg : theme.surface,
                   color: profileTab === tab ? theme.accentLight : theme.textDim,
                 }}>
                   {tab === "profile" ? "Profile" : tab === "room" ? "🏠 Room" : tab === "players" ? "Players" : "📜 History"}
@@ -1360,8 +1396,8 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
                       {myHistory.map(r => (
                         <div key={r.id} style={{
                           padding: "10px 12px", marginBottom: 8, borderRadius: 10,
-                          background: r.won ? "rgba(245,200,66,.08)" : theme.surface,
-                          border: `1px solid ${r.won ? "rgba(245,200,66,.25)" : theme.surfaceBorder}`,
+                          background: r.won ? theme.goldBg : theme.surface,
+                          border: `1px solid ${r.won ? theme.gold + "44" : theme.surfaceBorder}`,
                         }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                             <div style={{ fontWeight: 700, fontSize: 13, color: r.won ? theme.gold : theme.text }}>
@@ -1389,8 +1425,8 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
                       {adminHistory.map(r => (
                         <div key={r.id} style={{
                           padding: "10px 12px", marginBottom: 8, borderRadius: 10,
-                          background: r.winner ? "rgba(245,200,66,.08)" : theme.surface,
-                          border: `1px solid ${r.winner ? "rgba(245,200,66,.25)" : theme.surfaceBorder}`,
+                          background: r.winner ? theme.goldBg : theme.surface,
+                          border: `1px solid ${r.winner ? theme.gold + "44" : theme.surfaceBorder}`,
                         }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                             <div style={{ fontWeight: 700, fontSize: 13, color: r.winner ? theme.gold : theme.text }}>

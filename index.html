@@ -7,28 +7,106 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ScoreKing">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0d0d1a">
+<meta name="theme-color" content="#0A0A0F">
 <title>ScoreKing</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;background:#0d0d1a;color:#f0f0ff;font-family:'Inter',sans-serif;overscroll-behavior:none}
-  body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom,16px)}
+  html,body{height:100%;background:#0A0A0F;color:#E8D5A3;font-family:'Inter',sans-serif;overscroll-behavior:none}
+  body{
+    min-height:100vh;padding-bottom:env(safe-area-inset-bottom,16px);
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(201,168,76,.07), transparent 60%),
+      radial-gradient(ellipse 700px 600px at 100% 10%, rgba(45,31,61,.5), transparent 55%),
+      #0A0A0F;
+    background-attachment:fixed;
+  }
   #root{position:relative;min-height:100vh}
+
+  /* ─── ScoreKing "Baize & Bone" motion system ───
+     Every keyframe here is referenced directly from inline React styles
+     via the `animation` CSS property — no className plumbing required. */
+
+  @keyframes skPageFade {
+    0% { opacity:0; transform:translateY(10px) scale(.995); }
+    100% { opacity:1; transform:translateY(0) scale(1); }
+  }
+  .sk-page-transition{ animation: skPageFade .38s cubic-bezier(.2,.8,.3,1) both; }
+
+  @keyframes skDealerPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(201,168,76,.55); }
+    50%     { box-shadow: 0 0 0 6px rgba(201,168,76,0); }
+  }
+
+  @keyframes skWinnerEnter {
+    0%   { opacity:0; transform: scale(.72) translateY(36px) rotate(-2deg); }
+    55%  { opacity:1; transform: scale(1.05) translateY(-6px) rotate(.5deg); }
+    80%  { transform: scale(.98) translateY(0) rotate(0deg); }
+    100% { opacity:1; transform: scale(1) translateY(0) rotate(0deg); }
+  }
+  @keyframes skOverlayFade {
+    0% { opacity:0; } 100% { opacity:1; }
+  }
+  @keyframes skTrophyDrop {
+    0%   { opacity:0; transform: translateY(-30px) scale(.5) rotate(-12deg); }
+    60%  { opacity:1; transform: translateY(4px) scale(1.15) rotate(4deg); }
+    100% { opacity:1; transform: translateY(0) scale(1) rotate(0deg); }
+  }
+
+  @keyframes skElimFlash {
+    0%   { transform:scale(1);     filter:brightness(1) saturate(1);   box-shadow:0 0 0 rgba(255,71,87,0); }
+    12%  { transform:scale(1.025); filter:brightness(1.5) saturate(1.4); box-shadow:0 0 46px rgba(255,71,87,.65); }
+    45%  { transform:scale(.965);  filter:brightness(1.05) saturate(1.1); box-shadow:0 0 18px rgba(255,71,87,.25); }
+    100% { transform:scale(1);     filter:brightness(1) saturate(1);   box-shadow:0 0 0 rgba(255,71,87,0); }
+  }
+  @keyframes skOutBadgePop {
+    0%   { opacity:0; transform:scale(.4) rotate(-8deg); }
+    60%  { opacity:1; transform:scale(1.15) rotate(2deg); }
+    100% { opacity:1; transform:scale(1) rotate(0deg); }
+  }
+
+  @keyframes skParticleBurst {
+    0%   { transform:translate(-50%,-50%) scale(0); opacity:1; }
+    12%  { transform:translate(-50%,-50%) scale(1); opacity:1; }
+    100% { transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.25); opacity:0; }
+  }
+
+  @keyframes skShimmerSweep {
+    0%   { background-position: 220% 0%; }
+    100% { background-position: -60% 0%; }
+  }
+  /* Felt-texture shimmer: a soft diagonal gold sheen that slowly sweeps
+     across marquee surfaces (score cards, the win modal, the login card). */
+  .sk-felt{ position:relative; }
+  .sk-felt::before{
+    content:"";
+    position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:linear-gradient(120deg,
+      transparent 30%, rgba(232,213,163,.05) 45%, rgba(232,213,163,.09) 50%,
+      rgba(232,213,163,.05) 55%, transparent 70%);
+    background-size:220% 220%;
+    animation: skShimmerSweep 7s ease-in-out infinite;
+  }
+
+  @keyframes skGoldGleam {
+    0%,100% { opacity:.55; } 50% { opacity:1; }
+  }
 
   /* Polished, theme-matched scrollbars everywhere (instead of the browser's
      default bulky/bright bar) — thin, translucent, and only really visible
      while actively scrolling or hovering. */
-  * { scrollbar-width: thin; scrollbar-color: rgba(124,109,250,.35) transparent; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(201,168,76,.35) transparent; }
   *::-webkit-scrollbar { width: 6px; height: 6px; }
   *::-webkit-scrollbar-track { background: transparent; }
   *::-webkit-scrollbar-thumb {
-    background: rgba(124,109,250,.28);
+    background: rgba(201,168,76,.28);
     border-radius: 10px;
     border: 1px solid transparent;
     background-clip: padding-box;
   }
-  *::-webkit-scrollbar-thumb:hover { background: rgba(124,109,250,.5); background-clip: padding-box; }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(201,168,76,.5); background-clip: padding-box; }
   *::-webkit-scrollbar-corner { background: transparent; }
 </style>
 </head>

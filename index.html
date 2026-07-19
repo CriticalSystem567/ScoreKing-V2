@@ -30,9 +30,16 @@
      via the `animation` CSS property — no className plumbing required. */
 
   @keyframes skPageFade {
-    0% { opacity:0; transform:translateY(10px) scale(.995); }
-    100% { opacity:1; transform:translateY(0) scale(1); }
+    0% { opacity:0; }
+    100% { opacity:1; }
   }
+  /* Deliberately opacity-only (no transform). A `transform` here — even a
+     completed, resting one left behind by animation-fill-mode — turns this
+     wrapper into a containing block for any `position:fixed` descendant.
+     Nearly every full-screen overlay in this app (S.screen, S.overlayWrap,
+     etc.) IS position:fixed, so a transform here silently collapses them
+     down to a tiny sliver instead of covering the viewport. Keep this
+     transform-free. */
   .sk-page-transition{ animation: skPageFade .38s cubic-bezier(.2,.8,.3,1) both; }
 
   @keyframes skDealerPulse {

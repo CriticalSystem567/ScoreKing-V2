@@ -94,6 +94,32 @@ export async function getRoomCountsByAdmin() {
   (data || []).forEach(r => { counts[r.admin_username] = (counts[r.admin_username] || 0) + 1; });
   return counts;
 }
+/* Every room in the whole app, for the super-admin's transfer-ownership UI. */
+export async function listAllRoomsForSuperAdmin() {
+  const { data, error } = await supabase
+    .from("rooms")
+    .select("id, admin_username, room_code, locked, created_at")
+    .order("created_at", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(r => ({
+    id: r.id, adminUsername: r.admin_username, roomCode: r.room_code,
+    locked: r.locked, createdAt: r.created_at,
+  }));
+}
+/* Reassigns a room to a different existing player. The room, its game data,
+   round history, and everyone currently sitting in it (current_room_id)
+   all stay exactly as-is — only who's recognized as the host changes. */
+export async function transferRoomOwnership(roomId, newOwnerUsername) {
+  const newOwner = norm(newOwnerUsername);
+  const { data: player } = await supabase.from("players").select("username").eq("username", newOwner).maybeSingle();
+  if (!player) return { ok: false, error: "No account found with that username" };
+  const { data: room } = await supabase.from("rooms").select("admin_username").eq("id", roomId).maybeSingle();
+  if (!room) return { ok: false, error: "Room not found" };
+  if (room.admin_username === newOwner) return { ok: false, error: "That player already owns this room" };
+  const { error } = await supabase.from("rooms").update({ admin_username: newOwner }).eq("id", roomId);
+  if (error) return { ok: false, error: "Could not transfer room: " + error.message };
+  return { ok: true };
+}
 export async function deletePlayerAccount(username) {
   const u = norm(username);
   const { data: ownRooms } = await supabase.from("rooms").select("id").eq("admin_username", u);

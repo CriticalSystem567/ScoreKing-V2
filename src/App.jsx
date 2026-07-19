@@ -12,6 +12,39 @@ import JoinRoomScreen from "./screens/JoinRoomScreen.jsx";
 import SuperAdminScreen from "./screens/SuperAdminScreen.jsx";
 import GameScreen from "./screens/GameScreen.jsx";
 
+// iOS Safari (and Android Chrome under memory pressure) will often
+// silently discard and reload a backgrounded tab — this is very common
+// right after the screen locks for a bit. Since session/room state used to
+// live only in React state, that reload wiped it and dropped the player
+// back to the login screen. From their side this looked exactly like
+// "getting kicked", even though nothing on the server changed and nobody
+// removed them — only their own browser tab reset.
+// We persist just enough (no password) to silently restore exactly where
+// they were. The existing kick-detection polling in GameScreen still runs
+// as normal after restoring, so a *real* removal by the host is still
+// caught and shown correctly.
+const SESSION_KEY = "sk-active-session";
+
+function loadPersistedSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.session || !parsed.session.username) return null;
+    return parsed;
+  } catch { return null; }
+}
+
+function persistSession(session, viewMode, activeRoomId) {
+  try {
+    if (session) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ session, viewMode, activeRoomId }));
+    } else {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  } catch { /* private browsing / storage disabled — degrade to in-memory only */ }
+}
+
 function getSuperParam() {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -54,13 +87,20 @@ export default function App() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
   // session: { username, name, avatar }
-  const [session, setSession] = useState(null);
+  const persisted = loadPersistedSession();
+  const [session, setSession] = useState(persisted?.session ?? null);
   // viewMode: whose room is currently active — "own" (I host it) or "joined" (someone else's)
-  const [viewMode, setViewMode] = useState(null);
+  const [viewMode, setViewMode] = useState(persisted?.viewMode ?? null);
   // activeRoomId: the specific room (by id) currently being viewed. Required
   // because an admin can own MULTIPLE rooms now — viewMode alone isn't enough
   // to know which one.
-  const [activeRoomId, setActiveRoomId] = useState(null);
+  const [activeRoomId, setActiveRoomId] = useState(persisted?.activeRoomId ?? null);
+
+  // Keep localStorage in sync with whatever's currently active, so the
+  // NEXT reload (if the browser forces one) can restore from it too.
+  useEffect(() => {
+    persistSession(session, viewMode, activeRoomId);
+  }, [session, viewMode, activeRoomId]);
 
   useEffect(() => {
     const sp = getSuperParam();
@@ -161,9 +201,5 @@ export default function App() {
     : (!aboutSeen && screen === "landing") ? "about-first"
     : screen;
 
-  return (
-    <div key={routeKey} className="sk-page-transition" style={{ minHeight: "100vh" }}>
-      {renderScreen()}
-    </div>
-  );
+  return <div key={routeKey} className="sk-page-transition">{renderScreen()}</div>;
 }

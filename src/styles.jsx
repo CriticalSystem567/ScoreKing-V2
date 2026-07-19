@@ -40,39 +40,6 @@ export function getStyles(t, vp) {
     // Player scoreboard cards: single column on phones, 2 columns on
     // iPad/tablet widths, 3 columns once there's real desktop real estate.
     playerGrid:  { display:"grid",gridTemplateColumns: isDesktop ? "repeat(2,1fr)" : isTablet ? "repeat(2,1fr)" : "1fr",gap:10,marginBottom:14,alignItems:"start" },
-
-    // ─── Game Arena ───────────────────────────────────────────────────────
-    // A visually-bounded "table" that the live scoreboard + chart live
-    // inside of, instead of just floating loose on the page background.
-    // On desktop it's height-capped to the viewport with its OWN internal
-    // scroll for the cards column; the chart column is a plain flex sibling
-    // that stretches to match — it never scrolls or sticks, so nothing
-    // "moves" underneath it while you scroll the cards.
-    arenaFrame:  {
-      position:"relative", borderRadius: isDesktop ? 26 : 22, padding:2.5, marginBottom:14,
-      background:`linear-gradient(150deg, ${t.accentBorder}, rgba(201,168,76,.08) 35%, rgba(201,168,76,.03) 60%, ${t.accentBorder})`,
-      animation:"skArenaGlow 6s ease-in-out infinite, skArenaIn .5s cubic-bezier(.2,.8,.2,1) both",
-    },
-    arenaBody:   {
-      borderRadius: isDesktop ? 24 : 20, background:`${felt}${t.bg}`,
-      display:"flex", flexDirection:"column", overflow:"hidden",
-      minHeight: isDesktop ? "min(72vh, 700px)" : undefined,
-      maxHeight: isDesktop ? "min(72vh, 700px)" : undefined,
-    },
-    arenaHeader: {
-      flexShrink:0, padding: isDesktop ? "14px 20px" : "12px 14px",
-      borderBottom:`1px solid ${t.divider}`, background:t.surfaceStrong,
-      display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap",
-    },
-    arenaMain:   { flex:1, display:"flex", flexDirection: isDesktop ? "row" : "column", minHeight:0, overflow:"hidden" },
-    arenaCards:  { flex: isDesktop ? "1.3 1 0" : "1 1 auto", overflowY:"auto", overflowX:"hidden", padding: isDesktop ? "16px 18px" : "12px 12px 16px", minHeight:0, WebkitOverflowScrolling:"touch" },
-    arenaChart:  {
-      flex: isDesktop ? "1 0 340px" : "0 0 auto", width: isDesktop ? 340 : undefined,
-      borderLeft: isDesktop ? `1px solid ${t.divider}` : undefined,
-      borderTop: !isDesktop ? `1px solid ${t.divider}` : undefined,
-      padding: isDesktop ? "18px 18px 14px" : "14px 14px 16px",
-      overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column",
-    },
     outBadge:    { position:"absolute",top:14,right:14,fontSize:10,fontWeight:800,letterSpacing:".12em",color:t.dangerSoft,background:t.redBg,border:`1px solid ${t.redBorder}`,padding:"3px 9px",borderRadius:20,fontFamily:t.fontMono },
     dealerBadge: { position:"absolute",top:14,left:14,fontSize:10,fontWeight:800,letterSpacing:".06em",color:t.bg,background:`linear-gradient(135deg,${t.gold},${t.goldLight || t.orange})`,padding:"3px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4,animation:"skDealerPulse 2.4s ease-in-out infinite" },
     rankBubble:  { width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0,fontFamily:t.fontMono },

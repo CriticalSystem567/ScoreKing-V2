@@ -112,6 +112,51 @@
 </head>
 <body>
   <div id="root"></div>
+  <script>
+    // ─── Stale-service-worker self-heal ───────────────────────────────────
+    // If a visitor's browser is still running a service worker from a PREVIOUS
+    // deploy, it will serve them a cached index.html that points at JS/CSS
+    // files which no longer exist on the server (Vercel only serves the
+    // latest deployment's hashed assets). That 404 kills the module load
+    // before any of our own React/JS ever runs, leaving a blank page with
+    // nothing we can react to from inside the app.
+    // This plain, non-module, un-hashed script always loads (it's inlined
+    // right here, not a separate file), so it's the one place we CAN catch
+    // that failure. On catching it, we unregister the old service worker,
+    // clear the caches it built up, and reload — once — to fetch the
+    // current, correct shell.
+    (function () {
+      var RECOVERY_FLAG = "sk-sw-recovered";
+      function recover() {
+        if (sessionStorage.getItem(RECOVERY_FLAG)) return; // avoid reload loops
+        sessionStorage.setItem(RECOVERY_FLAG, "1");
+        var cleanup = [];
+        if ("serviceWorker" in navigator) {
+          cleanup.push(
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            })
+          );
+        }
+        if (window.caches) {
+          cleanup.push(
+            caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            })
+          );
+        }
+        Promise.all(cleanup).finally(function () {
+          window.location.reload();
+        });
+      }
+      document
+        .querySelectorAll('script[type="module"]')
+        .forEach(function (s) { s.addEventListener("error", recover); });
+      // Covers tabs left open across a deploy that later try to lazy-load
+      // a chunk deleted by the new build.
+      window.addEventListener("vite:preloadError", recover);
+    })();
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

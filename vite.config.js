@@ -8,6 +8,15 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
+      workbox: {
+        // Old precached entries (and the caches vite-plugin-pwa used to
+        // store them under a previous build's revision hashes) get purged
+        // as soon as a new service worker activates, instead of lingering
+        // around and potentially getting served up.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+      },
       // Without this, the manifest + service worker are only injected into
       // a production build — `npm run dev` serves plain index.html with no
       // manifest link and no SW, so the browser never considers the app

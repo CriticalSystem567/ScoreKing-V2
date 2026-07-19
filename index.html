@@ -101,6 +101,29 @@
     0%,100% { opacity:.55; } 50% { opacity:1; }
   }
 
+  /* ─── Game Arena — the bounded "table" frame ─── */
+  @keyframes skArenaGlow {
+    0%,100% { box-shadow: 0 0 0 1px rgba(201,168,76,.22), 0 24px 70px rgba(0,0,0,.55), 0 0 40px rgba(201,168,76,.05); }
+    50%     { box-shadow: 0 0 0 1px rgba(201,168,76,.4),  0 24px 70px rgba(0,0,0,.55), 0 0 62px rgba(201,168,76,.15); }
+  }
+  @keyframes skArenaIn {
+    0%   { opacity:0; transform: translateY(16px) scale(.985); }
+    100% { opacity:1; transform: translateY(0) scale(1); }
+  }
+  @keyframes skCardIn {
+    0%   { opacity:0; transform: translateY(14px) scale(.96); }
+    100% { opacity:1; transform: translateY(0) scale(1); }
+  }
+
+  /* Smooth cross-morph for View Transition API swaps (Cards ⇄ Table, etc).
+     Browsers without support simply ignore this — no fallback needed since
+     we also no-op the JS call when unsupported. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: .42s;
+    animation-timing-function: cubic-bezier(.2,.8,.2,1);
+  }
+
   /* Polished, theme-matched scrollbars everywhere (instead of the browser's
      default bulky/bright bar) — thin, translucent, and only really visible
      while actively scrolling or hovering. */

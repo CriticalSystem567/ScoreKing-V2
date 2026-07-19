@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { supabase } from "../supabaseClient.js";
 import { getStyles, Avatar } from "../styles.jsx";
 import { useTheme } from "../ThemeContext.jsx";
@@ -44,6 +45,15 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
   const [showHistory, setShowHistory] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("all");
   const [tableView, setTableView] = useState(false);
+  // Cards⇄Table swap, morphed via the View Transition API where the browser
+  // supports it (Chrome/Edge/Safari 18+); plain instant setState elsewhere.
+  const morphTableView = useCallback((val) => {
+    if (typeof document !== "undefined" && document.startViewTransition) {
+      document.startViewTransition(() => flushSync(() => setTableView(val)));
+    } else {
+      setTableView(val);
+    }
+  }, []);
   const [showWinner, setShowWinner] = useState(true);
   const [toast, setToast] = useState("");
   const [csvText, setCsvText] = useState(null);
@@ -863,32 +873,26 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
         </div>
       )}
 
-      {/* ROUND LABEL + VIEW TOGGLE */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0", padding: "0 2px" }}>
-        <div style={{ flex: 1, height: 1, background: theme.divider }} />
-        <span style={{ fontSize: 11, color: theme.gold, textTransform: "uppercase", letterSpacing: ".12em", whiteSpace: "nowrap", fontWeight: 600 }}>
-          Round {game.round} — {isHost ? "Enter scores below" : "Viewing live scores"}
-        </span>
-        <div style={{ flex: 1, height: 1, background: theme.divider }} />
-      </div>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-        <div style={{ display: "flex", background: theme.surface, border: `1px solid ${theme.surfaceBorder}`, borderRadius: 10, padding: 3, gap: 2 }}>
-          <button onClick={() => setTableView(false)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: !tableView ? theme.accentBg : "transparent", color: !tableView ? theme.gold : theme.textDim }}>🗂 Cards</button>
-          <button onClick={() => setTableView(true)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: tableView ? theme.accentBg : "transparent", color: tableView ? theme.gold : theme.textDim }}>📋 Table</button>
-        </div>
-      </div>
+      {/* GAME ARENA — a bounded "table" frame. The header (round label +
+          view toggle) is pinned; below it, the cards/table pane scrolls
+          on its own while the chart pane (desktop only) sits as a plain
+          flex sibling that stretches to match height — it has no sticky
+          positioning and isn't in the scrolling pane, so it simply never
+          moves, no matter how far you scroll the scores. */}
+      <div style={S.arenaFrame}>
+        <div style={S.arenaBody}>
+          <div style={S.arenaHeader}>
+            <span style={{ fontSize: 11, color: theme.gold, textTransform: "uppercase", letterSpacing: ".12em", whiteSpace: "nowrap", fontWeight: 700 }}>
+              🂠 Round {game.round} — {isHost ? "Enter scores below" : "Viewing live scores"}
+            </span>
+            <div style={{ display: "flex", background: theme.surface, border: `1px solid ${theme.surfaceBorder}`, borderRadius: 10, padding: 3, gap: 2 }}>
+              <button onClick={() => morphTableView(false)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: !tableView ? theme.accentBg : "transparent", color: !tableView ? theme.gold : theme.textDim }}>🗂 Cards</button>
+              <button onClick={() => morphTableView(true)} style={{ ...S.btn, padding: "6px 14px", minHeight: 30, fontSize: 12, background: tableView ? theme.accentBg : "transparent", color: tableView ? theme.gold : theme.textDim }}>📋 Table</button>
+            </div>
+          </div>
 
-      {/* On desktop, split into a left pane (live scores) and a right pane
-          (round-by-round line chart) instead of just stretching the same
-          single-column content wider. Tablet/mobile keep the simple
-          single-column stack. */}
-      <div style={{
-        display: vp.isDesktop ? "grid" : "block",
-        gridTemplateColumns: vp.isDesktop ? "1.3fr 1fr" : undefined,
-        gap: vp.isDesktop ? 20 : 0,
-        alignItems: "start",
-      }}>
-      <div>
+          <div style={S.arenaMain}>
+          <div style={S.arenaCards}>
       {/* PLAYER CARDS */}
       {!tableView && game.players.length === 0 && (
         <div style={{ ...S.glass, textAlign: "center", padding: 30, color: theme.textFaint, fontSize: 13 }}>
@@ -914,7 +918,7 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
                 ...S.pcard,
                 opacity: elim ? .45 : 1,
                 position: "relative",
-                animation: flashing ? "skElimFlash .9s ease" : undefined,
+                animation: flashing ? "skElimFlash .9s ease" : `skCardIn .4s cubic-bezier(.2,.8,.2,1) ${i * 45}ms both`,
               }}>
                 {flashing && <ParticleBurst count={20} colors={[theme.red, "#FF8A94", theme.orange]} spread={110} />}
                 {elim && <div style={{ ...S.outBadge, animation: flashing ? "skOutBadgePop .5s ease .25s both" : undefined }}>OUT</div>}
@@ -1016,14 +1020,16 @@ export default function GameScreen({ session, viewMode, roomId, onLogout, onBack
           </table>
         </div>
       )}
-      </div>
+          </div>
 
-      {vp.isDesktop && (
-        <div style={{ ...S.glass, position: "sticky", top: 14, margin: 0 }}>
-          <div style={{ ...S.sectionLabel, marginBottom: 4 }}>📈 Score by Round</div>
-          <RoundScoreChart players={game.players} history={game.history} maxScore={maxS} theme={theme} />
+          {vp.isDesktop && (
+            <div style={S.arenaChart}>
+              <div style={{ ...S.sectionLabel, marginBottom: 4, flexShrink: 0 }}>📈 Score by Round</div>
+              <RoundScoreChart players={game.players} history={game.history} maxScore={maxS} theme={theme} />
+            </div>
+          )}
+          </div>
         </div>
-      )}
       </div>
 
       {/* ACTION BAR (host only) */}

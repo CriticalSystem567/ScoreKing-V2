@@ -52,8 +52,16 @@ function getSuperParam() {
   } catch { return null; }
 }
 
+function getRoomParam() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("room");
+  } catch { return null; }
+}
+
 export default function App() {
   const [screen, setScreen] = useState("landing");
+  const [pendingRoomCode, setPendingRoomCode] = useState(getRoomParam());
   const [aboutSeen, setAboutSeen] = useState(false);
   // The browser only fires "beforeinstallprompt" once, and only if we call
   // preventDefault() on it synchronously — otherwise Chrome shows its own
@@ -106,6 +114,31 @@ export default function App() {
     const sp = getSuperParam();
     if (sp && sp === SUPER_ADMIN_PASSPHRASE) setScreen("superadmin");
   }, []);
+
+  // If there is a pending room code from the URL and the user is already logged in,
+  // automatically attach them to the room!
+  useEffect(() => {
+    if (session && pendingRoomCode && !activeRoomId) {
+      import("./db.js").then(({ joinRoomByCode }) => {
+        joinRoomByCode(session.username, pendingRoomCode).then(res => {
+          if (res.ok) {
+            setPendingRoomCode(null);
+            enterJoinedRoom(res.roomId);
+            // Clean URL query param without full reload
+            try {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch {}
+          } else {
+            setPendingRoomCode(null);
+          }
+        });
+      });
+    } else if (!session && pendingRoomCode && screen === "landing") {
+      // If not logged in and landing on a room URL, send them to login or signup
+      // Let's default to login screen if they have a saved session or login screen
+      setScreen("login");
+    }
+  }, [session, pendingRoomCode]);
 
   const goLanding = () => { setSession(null); setViewMode(null); setActiveRoomId(null); setScreen("landing"); };
   const updateSession = (patch) => setSession(prev => ({ ...prev, ...patch }));
@@ -165,13 +198,43 @@ export default function App() {
         />
       );
     case "signup":
-      return <SignupScreen onBack={() => setScreen("landing")} onDone={(s) => setSession(s)} />;
+      return <SignupScreen onBack={() => setScreen("landing")} onDone={(s) => {
+        setSession(s);
+        if (pendingRoomCode) {
+          import("./db.js").then(({ joinRoomByCode }) => {
+            joinRoomByCode(s.username, pendingRoomCode).then(res => {
+              if (res.ok) {
+                setPendingRoomCode(null);
+                enterJoinedRoom(res.roomId);
+                try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
+              } else {
+                setPendingRoomCode(null);
+              }
+            });
+          });
+        }
+      }} />;
     case "login":
       return (
         <LoginScreen
           onBack={() => setScreen("landing")}
           onForgot={() => setScreen("forgot")}
-          onDone={(s) => setSession(s)}
+          onDone={(s) => {
+            setSession(s);
+            if (pendingRoomCode) {
+              import("./db.js").then(({ joinRoomByCode }) => {
+                joinRoomByCode(s.username, pendingRoomCode).then(res => {
+                  if (res.ok) {
+                    setPendingRoomCode(null);
+                    enterJoinedRoom(res.roomId);
+                    try { window.history.replaceState({}, document.title, window.location.pathname); } catch {}
+                  } else {
+                    setPendingRoomCode(null);
+                  }
+                });
+              });
+            }
+          }}
           installEvent={installEvent}
           onInstallHandled={() => setInstallEvent(null)}
           showIOSInstructions={showIOSInstructions}

@@ -12,7 +12,7 @@ export default function QRCodeDisplay({ value, size = 180, label = null }) {
   useEffect(() => {
     if (!value || !canvasRef.current) return;
     import("qrcode").then(QRCode => {
-      QRCode.toCanvas(canvasRef.current, value, {
+      QRCode.toCanvas(canvasRef.current, window.location.origin + "/?room=" + value, {
         width: size,
         margin: 2,
         color: { dark: "#1a1a2e", light: "#f7f3ed" },

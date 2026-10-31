@@ -52,7 +52,17 @@ export default function QRScanner({ onScan, onClose }) {
         inversionAttempts: "dontInvert",
       });
       if (result) {
-        const clean = result.data.trim().toUpperCase();
+        let rawData = result.data.trim();
+        try {
+          const url = new URL(rawData);
+          const roomParam = url.searchParams.get("room");
+          if (roomParam) {
+            rawData = roomParam;
+          }
+        } catch {
+          // not a URL, use as is
+        }
+        const clean = rawData.toUpperCase();
         const match = clean.match(/[A-Z0-9]{6}/);
         const code = match ? match[0] : clean;
         stop();
